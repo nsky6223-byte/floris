@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Floris</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 10s linear infinite;
+        }
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        /* Hide scrollbar for IE, Edge and Firefox */
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+    </style>
+</head>
+<body class="bg-slate-100">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect } from 'https://esm.sh/react@18.2.0?dev';
+        import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?dev';
+        import { Sparkles, BookOpen, ShoppingBag, Home, Share2, Flower, X, ArrowRight, RefreshCw, Star, Mail, CheckCircle, ArrowUpRight } from 'https://esm.sh/lucide-react@0.263.1?dev';
+
+        // --- 1. Mock Data (데이터셋 시뮬레이션) ---
+
+        const GACHA_RATES = {
+          Common: 0.6,
+          Rare: 0.3,
+          Legendary: 0.1
+        };
+
+        // --- 2. Components ---
+
+        const RarityBadge = ({ rarity }) => {
+          const colors = {
+            Common: "bg-slate-100 text-slate-600 border-slate-200",
+            Rare: "bg-blue-50 text-blue-600 border-blue-200",
+            Legendary: "bg-purple-50 text-purple-600 border-purple-200 animate-pulse",
+          };
+          return (
+            <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${colors[rarity]}`}>
+              {rarity.toUpperCase()}
+            </span>
+          );
+        };
+
+        const FlowerCard = ({ flower, onClick, showCount, count, isNew }) => (
+          <div 
+            onClick={() => onClick && onClick(flower)}
+            className="group relative bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-slate-100 cursor-pointer"
+          >
+            <div className="aspect-[4/5] relative overflow-hidden">
+              <img 
+                src={flower.image} 
+                alt={flower.name} 
+                onError={(e) => {e.target.onerror = null; e.target.src = "https://placehold.co/400x500?text=No+Image"}}
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+              <div className="absolute bottom-3 left-3 right-3 text-white">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <h3 className="font-bold text-lg">{flower.name}</h3>
+                    <p className="text-xs opacity-90 truncate">{flower.language}</p>
+                  </div>
+                </div>
+              </div>
+              {isNew && (
+                <div className="absolute top-2 right-2 bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg animate-bounce">
+                  NEW!
+                </div>
+              )}
+            </div>
+            <div className="p-3 flex justify-between items-center bg-white">
+              <RarityBadge rarity={flower.rarity} />
+              {showCount && count > 0 && (
+                <span className="text-xs font-bold text-slate-500">x{count}</span>
+              )}
+            </div>
+          </div>
+        );
+
+        const Modal = ({ isOpen, onClose, children }) => {
+          if (!isOpen) return null;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+              <div className="relative bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+                {children}
+                <button 
+                  onClick={onClose}
+                  className="absolute top-4 right-4 p-1 rounded-full bg-white/20 hover:bg-black/10 transition-colors z-10"
+                >
+                  <X size={20} className="text-slate-500" />
+                </button>
+              </div>
+            </div>
+          );
+        };
+
+        function FlorisApp() {
+          const [activeTab, setActiveTab] = useState('home');
+          const [userPoints, setUserPoints] = useState(1000);
+          const [flowerDB, setFlowerDB] = useState([]);
+
+          useEffect(() => {
+            fetch('./flowers.json')
+              .then(res => res.json())
+              .then(data => setFlowerDB(data))
+              .catch(err => console.error("데이터 로딩 실패:", err));
+          }, []);
+
+          const [inventory, setInventory] = useState({}); // { flowerId: count }
+          
+          // New States for "New Arrival" logic
+          const [newFlowerIds, setNewFlowerIds] = useState([]); // List of IDs that are "New" and not yet revealed/sorted
+          const [sortMode, setSortMode] = useState('id'); // 'id' | 'rarity'
+          const [isRevealing, setIsRevealing] = useState(false); // Mode for revealing new flowers
+          const [revealIndex, setRevealIndex] = useState(0);
+
+          const [selectedFlower, setSelectedFlower] = useState(null);
+          
+          // Letter Writing State
+          const [isWritingLetter, setIsWritingLetter] = useState(false);
+          const [letterContent, setLetterContent] = useState("");
+
+          // Gacha State
+          const [isGachaAnimating, setIsGachaAnimating] = useState(false);
+          const [gachaResult, setGachaResult] = useState(null);
+          const GACHA_COST = 100;
+
+          // Notification State
+          const [notification, setNotification] = useState(null);
+
+          const showNotification = (msg) => {
+            setNotification(msg);
+            setTimeout(() => setNotification(null), 3000);
+          };
+
+          // --- Logic: Gacha ---
+          const handleGacha = () => {
+            if (flowerDB.length === 0) {
+                showNotification("꽃 데이터를 불러오는 중입니다...");
+                return;
+            }
+
+            if (userPoints < GACHA_COST) {
+              showNotification("포인트가 부족해요! (마켓에서 꽃을 팔아보세요)");
+              return;
+            }
+
+            setUserPoints(prev => prev - GACHA_COST);
+            setIsGachaAnimating(true);
+            setGachaResult(null);
+
+            // 가챠 로직
+            setTimeout(() => {
+              const rand = Math.random();
+              let selectedRarity = "Common";
+              if (rand > 1 - GACHA_RATES.Legendary) selectedRarity = "Legendary";
+              else if (rand > 1 - (GACHA_RATES.Legendary + GACHA_RATES.Rare)) selectedRarity = "Rare";
+
+              const pool = flowerDB.filter(f => f.rarity === selectedRarity);
+              const pickedFlower = pool[Math.floor(Math.random() * pool.length)];
+
+              const isFirstTime = !inventory[pickedFlower.id];
+
+              setInventory(prev => ({
+                ...prev,
+                [pickedFlower.id]: (prev[pickedFlower.id] || 0) + 1
+              }));
+
+              // Add to new list if it's the first time
+              if (isFirstTime) {
+                setNewFlowerIds(prev => [...prev, pickedFlower.id]);
+              }
+              
+              setGachaResult({ flower: pickedFlower, isNew: isFirstTime });
+              setIsGachaAnimating(false);
+            }, 2000);
+          };
+
+          // --- Logic: Sell ---
+          const handleSell = (flowerId) => {
+            const flower = flowerDB.find(f => f.id === parseInt(flowerId));
+            if (inventory[flowerId] > 0) {
+              setInventory(prev => {
+                const newState = { ...prev };
+                newState[flowerId]--;
+                if (newState[flowerId] === 0) delete newState[flowerId];
+                return newState;
+              });
+              setUserPoints(prev => prev + flower.price);
+              showNotification(`${flower.name} 판매 완료! +${flower.price}P`);
+              setSelectedFlower(null);
+            }
+          };
+
+          // --- Logic: Share with Letter ---
+          const handleShare = async (flower) => {
+            showNotification("공유 링크를 생성하는 중...");
+
+            try {
+              // 서버 API 호출
+              const response = await fetch('/api/share/create-link', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  flowerId: flower.id, // 도감 번호 전송
+                  letterContent: letterContent,
+                  senderName: "익명의 정원사" // 필요시 입력받도록 수정 가능
+                }),
+              });
+
+              // 응답 상태 확인 (에러 처리 강화)
+              if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`서버 오류 (${response.status}): ${errorText.slice(0, 100)}...`);
+              }
+
+              const data = await response.json();
+
+              if (data.success) {
+                // 서버가 준 완성된 메시지(링크 포함)를 복사
+                await navigator.clipboard.writeText(data.message);
+                showNotification("링크가 포함된 메시지가 복사되었습니다!");
+                setIsWritingLetter(false);
+                setLetterContent("");
+              } else {
+                showNotification("오류: " + (data.message || "공유 실패"));
+              }
+            } catch (error) {
+              console.error("Share Error:", error);
+              showNotification("서버 연결에 실패했습니다.");
+            }
+          };
+
+          // --- Logic: Sorting & Reveal ---
+          const handleSortRequest = () => {
+            if (newFlowerIds.length > 0) {
+              // Start reveal sequence
+              setIsRevealing(true);
+              setRevealIndex(0);
+            } else {
+              // Just sort
+              setSortMode('rarity');
+              showNotification("등급별로 정렬되었습니다.");
+            }
+          };
+
+          const handleNextReveal = () => {
+            if (revealIndex < newFlowerIds.length - 1) {
+              setRevealIndex(prev => prev + 1);
+            } else {
+              // Finished revealing
+              setIsRevealing(false);
+              setNewFlowerIds([]);
+              setSortMode('rarity');
+              showNotification("모든 새 꽃을 확인했습니다! 등급별로 정렬합니다.");
+            }
+          };
+
+          // --- Views ---
+
+          const HomeView = () => (
+            <div className="space-y-6 pb-20 p-6">
+              <header className="flex justify-between items-center mb-8">
+                <div>
+                  <h1 className="text-2xl font-serif font-bold text-rose-950">Floris</h1>
+                  <p className="text-rose-400 text-xs">매일 피어나는 나만의 정원</p>
+                </div>
+                <div className="bg-white/80 backdrop-blur px-3 py-1.5 rounded-full border border-rose-100 flex items-center gap-2 shadow-sm">
+                  <div className="w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-[10px] text-yellow-800 font-bold">P</div>
+                  <span className="font-bold text-rose-950 text-sm">{userPoints.toLocaleString()}</span>
+                </div>
+              </header>
+
+              {/* Daily Bonus Section */}
+              <div className="bg-gradient-to-r from-rose-100 to-pink-50 p-6 rounded-3xl relative overflow-hidden shadow-sm">
+                <div className="relative z-10">
+                  <span className="bg-white/90 text-rose-500 text-[10px] font-bold px-2 py-1 rounded-full">DAILY BONUS</span>
+                  <h2 className="text-xl font-bold text-rose-950 mt-2">오늘의 꽃씨 받기</h2>
+                  <p className="text-rose-700/80 text-sm mt-1 mb-4">매일 접속하고 100 포인트를 받으세요.</p>
+                  <button 
+                    onClick={() => {
+                      setUserPoints(prev => prev + 100);
+                      showNotification("출석 보너스 +100P 획득!");
+                    }}
+                    className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-lg shadow-rose-200"
+                  >
+                    보너스 받기
+                  </button>
+                </div>
+                <Sparkles className="absolute right-[-10px] bottom-[-10px] text-white/40 w-32 h-32 rotate-12" />
+              </div>
+
+              {/* Featured Flower */}
+              <div>
+                <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <Star size={18} className="text-yellow-500 fill-yellow-500" />
+                  오늘의 추천 꽃
+                </h3>
+                {flowerDB.length > 0 ? (
+                  <FlowerCard flower={flowerDB[3] || flowerDB[0]} onClick={(f) => {
+                    setSelectedFlower(f);
+                    setIsWritingLetter(false); // Reset letter state
+                  }} />
+                ) : <div className="p-4 text-center text-slate-400">로딩 중...</div>}
+              </div>
+            </div>
+          );
+
+          const GachaView = () => (
+            <div className="flex flex-col h-full items-center justify-center p-6 pb-24 relative overflow-hidden">
+              <div className="text-center mb-8 z-10">
+                <h2 className="text-2xl font-bold text-rose-950 mb-2">신비로운 꽃씨</h2>
+                <p className="text-slate-500 text-sm">어떤 꽃이 피어날까요? ({GACHA_COST}P)</p>
+              </div>
+
+              <div className="relative w-64 h-64 mb-8 flex items-center justify-center">
+                {/* Animated Circle Background */}
+                <div className={`absolute inset-0 rounded-full border-2 border-dashed border-rose-200 ${isGachaAnimating ? 'animate-spin-slow' : ''}`} />
+                <div className={`absolute inset-4 rounded-full bg-rose-50 ${isGachaAnimating ? 'animate-pulse' : ''}`} />
+                
+                {/* Seed/Box Animation */}
+                <div className={`relative z-10 transition-all duration-700 ${isGachaAnimating ? 'scale-110 rotate-3' : 'hover:scale-105'}`}>
+                    <div 
+                        className="w-32 h-32 bg-rose-400 rounded-3xl rotate-45 flex items-center justify-center shadow-2xl shadow-rose-200 cursor-pointer transition-transform"
+                        onClick={!isGachaAnimating && !gachaResult ? handleGacha : undefined}
+                    >
+                        <Flower size={64} className="text-white -rotate-45" />
+                    </div>
+                </div>
+              </div>
+
+              {/* Action Area */}
+              {!gachaResult ? (
+                <button 
+                  onClick={handleGacha}
+                  disabled={isGachaAnimating}
+                  className={`w-full max-w-xs py-4 rounded-2xl font-bold text-lg shadow-xl transition-all
+                    ${isGachaAnimating 
+                      ? 'bg-slate-100 text-slate-400' 
+                      : 'bg-gradient-to-r from-rose-500 to-pink-500 text-white hover:shadow-rose-200/50 hover:-translate-y-1'
+                    }`}
+                >
+                  {isGachaAnimating ? "꽃이 피어나는 중..." : "꽃 피우기"}
+                </button>
+              ) : (
+                <div className="w-full max-w-xs animate-in slide-in-from-bottom duration-500">
+                   <div className="bg-white p-6 rounded-2xl shadow-xl border border-rose-100 text-center">
+                      <p className="text-rose-500 font-bold text-sm mb-2">
+                        {gachaResult.isNew ? "✨ 새로운 발견!" : "이미 정원에 있는 꽃이네요"}
+                      </p>
+                      <div className="aspect-square rounded-xl overflow-hidden mb-4 shadow-inner">
+                         <img 
+                           src={gachaResult.flower.image} 
+                           onError={(e) => {e.target.onerror = null; e.target.src = "https://placehold.co/400x500?text=No+Image"}}
+                           className="w-full h-full object-cover" 
+                         />
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-800">{gachaResult.flower.name}</h3>
+                      <p className="text-slate-500 text-sm mb-4">{gachaResult.flower.language}</p>
+                      <div className="flex gap-2">
+                        <button onClick={() => setGachaResult(null)} className="flex-1 bg-slate-100 py-3 rounded-xl font-bold text-slate-600 hover:bg-slate-200">
+                          닫기
+                        </button>
+                        <button onClick={handleGacha} className="flex-1 bg-rose-500 py-3 rounded-xl font-bold text-white hover:bg-rose-600">
+                          한 번 더!
+                        </button>
+                      </div>
+                   </div>
+                </div>
+              )}
+            </div>
+          );
+
+          const CollectionView = () => {
+            let myFlowerIds = Object.keys(inventory);
+
+            // Sorting Logic
+            if (sortMode === 'rarity') {
+                const rarityOrder = { "Legendary": 3, "Rare": 2, "Common": 1 };
+                myFlowerIds.sort((a, b) => {
+                    const flowerA = flowerDB.find(f => f.id === parseInt(a));
+                    const flowerB = flowerDB.find(f => f.id === parseInt(b));
+                    return rarityOrder[flowerB.rarity] - rarityOrder[flowerA.rarity] || flowerA.id - flowerB.id;
+                });
+            } else {
+                myFlowerIds.sort((a, b) => parseInt(a) - parseInt(b));
+            }
+            
+            return (
+              <div className="p-6 pb-24">
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold text-rose-950">나의 정원 <span className="text-slate-400 text-lg font-normal">({myFlowerIds.length}/{flowerDB.length})</span></h2>
+                    
+                    {myFlowerIds.length > 0 && (
+                        <button 
+                            onClick={handleSortRequest}
+                            className={`text-xs px-3 py-1.5 rounded-full font-bold transition-all flex items-center gap-1.5
+                            ${newFlowerIds.length > 0 
+                                ? 'bg-rose-500 text-white animate-pulse shadow-lg shadow-rose-200' 
+                                : 'bg-slate-100 text-slate-600'}`}
+                        >
+                            {newFlowerIds.length > 0 ? (
+                                <><Sparkles size={12}/> 새 꽃 확인 ({newFlowerIds.length})</>
+                            ) : (
+                                sortMode === 'rarity' ? '등급순 정렬됨' : '등급순 정렬'
+                            )}
+                        </button>
+                    )}
+                </div>
+                
+                {myFlowerIds.length === 0 ? (
+                  <div className="text-center py-20 text-slate-400">
+                    <BookOpen size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>아직 피어난 꽃이 없어요.<br/>가챠 탭에서 꽃씨를 심어보세요.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    {myFlowerIds.map(id => {
+                      const flower = flowerDB.find(f => f.id === parseInt(id));
+                      // Highlight new flowers if they are in the new list (and not yet revealed)
+                      const isUnrevealed = newFlowerIds.includes(parseInt(id));
+                      
+                      return (
+                        <div key={id} className={isUnrevealed ? "ring-2 ring-rose-400 ring-offset-2 rounded-2xl relative" : ""}>
+                            {isUnrevealed && <div className="absolute -top-2 -right-2 z-10 bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">New</div>}
+                            <FlowerCard 
+                            flower={flower} 
+                            onClick={(f) => {
+                                setSelectedFlower(f);
+                                setIsWritingLetter(false);
+                            }}
+                            showCount 
+                            count={inventory[id]} 
+                            />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          };
+
+          const MarketView = () => {
+            const duplicates = Object.keys(inventory).filter(id => inventory[id] > 1);
+
+            return (
+              <div className="p-6 pb-24">
+                <div className="flex justify-between items-end mb-6">
+                   <h2 className="text-2xl font-bold text-rose-950">플라워 마켓</h2>
+                   <div className="text-right">
+                     <p className="text-xs text-slate-500">보유 포인트</p>
+                     <p className="text-xl font-bold text-rose-600">{userPoints.toLocaleString()} P</p>
+                   </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 mb-6">
+                  <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2">
+                    <RefreshCw size={16} /> 중복 꽃 판매소
+                  </h3>
+                  <p className="text-sm text-slate-500 mb-4">정원에 이미 있는 꽃을 판매하여 포인트를 얻으세요.</p>
+                  
+                  {duplicates.length === 0 ? (
+                    <div className="text-center py-8 bg-slate-50 rounded-xl text-slate-400 text-sm">
+                      판매할 수 있는 중복 꽃이 없어요.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {duplicates.map(id => {
+                        const flower = flowerDB.find(f => f.id === parseInt(id));
+                        return (
+                          <div key={id} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl">
+                            <div className="flex items-center gap-3">
+                              <img 
+                                src={flower.image} 
+                                onError={(e) => {e.target.onerror = null; e.target.src = "https://placehold.co/100x100?text=Flower"}}
+                                className="w-10 h-10 rounded-lg object-cover" 
+                              />
+                              <div>
+                                <p className="font-bold text-sm text-slate-700">{flower.name}</p>
+                                <p className="text-xs text-slate-500">보유량: {inventory[id]}</p>
+                              </div>
+                            </div>
+                            <button 
+                              onClick={() => handleSell(id)}
+                              className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600"
+                            >
+                              +{flower.price} P
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          };
+
+          // --- Reveal Modal for New Flowers ---
+          const RevealModal = () => {
+              if (!isRevealing || newFlowerIds.length === 0) return null;
+              
+              const currentId = newFlowerIds[revealIndex];
+              const flower = flowerDB.find(f => f.id === currentId);
+              const isLast = revealIndex === newFlowerIds.length - 1;
+
+              return (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+                    <div className="w-full max-w-sm text-center text-white animate-in zoom-in duration-500">
+                        <p className="text-rose-300 font-bold mb-4 tracking-widest uppercase">New Discovery {revealIndex + 1}/{newFlowerIds.length}</p>
+                        <div className="relative aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl mb-8 border-4 border-rose-500/30">
+                             <img 
+                               src={flower.image} 
+                               onError={(e) => {e.target.onerror = null; e.target.src = "https://placehold.co/400x500?text=No+Image"}}
+                               className="w-full h-full object-cover" 
+                             />
+                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                             <div className="absolute bottom-6 left-0 right-0 p-4">
+                                <RarityBadge rarity={flower.rarity} />
+                                <h2 className="text-3xl font-bold mt-2">{flower.name}</h2>
+                                <p className="text-rose-200 opacity-90">{flower.language}</p>
+                             </div>
+                        </div>
+                        
+                        <button 
+                            onClick={handleNextReveal}
+                            className="bg-white text-rose-600 w-full py-4 rounded-2xl font-bold text-lg hover:bg-rose-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                            {isLast ? "확인 및 정렬하기" : "다음 꽃 보기"} <ArrowRight size={20} />
+                        </button>
+                    </div>
+                </div>
+              );
+          };
+
+          // --- Main Layout ---
+          return (
+            <div className="max-w-md mx-auto h-screen bg-slate-50 shadow-2xl relative overflow-hidden font-sans text-slate-800 flex flex-col">
+              {/* Toast Notification */}
+              {notification && (
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[70] w-[90%]">
+                  <div className="bg-slate-800/90 backdrop-blur text-white px-4 py-3 rounded-xl shadow-2xl text-center text-sm font-medium animate-in slide-in-from-top fade-in duration-300">
+                    {notification}
+                  </div>
+                </div>
+              )}
+
+              {/* Main Content Area */}
+              <main className="flex-1 overflow-y-auto no-scrollbar">
+                {activeTab === 'home' && <HomeView />}
+                {activeTab === 'gacha' && <GachaView />}
+                {activeTab === 'collection' && <CollectionView />}
+                {activeTab === 'market' && <MarketView />}
+              </main>
+
+              {/* Reveal Sequence Modal */}
+              <RevealModal />
+
+              {/* Detail & Share Modal */}
+              <Modal isOpen={!!selectedFlower} onClose={() => setSelectedFlower(null)}>
+                {selectedFlower && (
+                  <div>
+                    {/* Header Image */}
+                    <div className="relative h-64">
+                      <img 
+                        src={selectedFlower.image} 
+                        onError={(e) => {e.target.onerror = null; e.target.src = "https://placehold.co/600x400?text=No+Image"}}
+                        className="w-full h-full object-cover" 
+                      />
+                      <div className="absolute top-4 left-4">
+                         <RarityBadge rarity={selectedFlower.rarity} />
+                      </div>
+                      <button 
+                        className="absolute top-4 right-12 bg-black/20 p-1 rounded-full text-white backdrop-blur-md"
+                        onClick={() => setIsWritingLetter(!isWritingLetter)}
+                      >
+                         <Mail size={20} />
+                      </button>
+                    </div>
+
+                    <div className="p-6">
+                      {/* Content Switch: Info vs Letter */}
+                      {!isWritingLetter ? (
+                          <>
+                            <h2 className="text-2xl font-bold text-rose-950 mb-1">{selectedFlower.name}</h2>
+                            <p className="text-rose-500 font-medium italic mb-4">"{selectedFlower.language}"</p>
+                            
+                            <div className="bg-slate-50 p-4 rounded-xl mb-6">
+                                <p className="text-slate-600 text-sm leading-relaxed">
+                                {selectedFlower.description}
+                                </p>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <button 
+                                onClick={() => setIsWritingLetter(true)}
+                                className="flex-1 flex items-center justify-center gap-2 bg-slate-100 text-slate-700 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                                >
+                                <Share2 size={18} />
+                                공유하기
+                                </button>
+                                {inventory[selectedFlower.id] > 1 && (
+                                <button 
+                                onClick={() => handleSell(selectedFlower.id)}
+                                className="flex-1 flex items-center justify-center gap-2 bg-emerald-50 text-emerald-600 py-3 rounded-xl font-bold hover:bg-emerald-100 transition-colors"
+                                >
+                                <ShoppingBag size={18} />
+                                판매 (+{selectedFlower.price}P)
+                                </button>
+                                )}
+                            </div>
+                          </>
+                      ) : (
+                          <div className="animate-in slide-in-from-right duration-300">
+                              <div className="flex items-center justify-between mb-4">
+                                  <h3 className="font-bold text-lg flex items-center gap-2">
+                                      <Mail size={18} className="text-rose-500"/> 편지 쓰기
+                                  </h3>
+                                  <button onClick={() => setIsWritingLetter(false)} className="text-xs text-slate-400 underline">취소</button>
+                              </div>
+                              
+                              <div className="bg-rose-50 p-4 rounded-xl mb-4 border border-rose-100">
+                                  <p className="text-xs text-rose-400 mb-2 font-bold">To. 소중한 사람에게</p>
+                                  <textarea 
+                                    value={letterContent}
+                                    onChange={(e) => setLetterContent(e.target.value)}
+                                    placeholder="이 꽃과 함께 전할 마음을 적어보세요..."
+                                    className="w-full bg-transparent border-none focus:ring-0 text-slate-700 text-sm placeholder:text-rose-300/70 resize-none h-24 p-0"
+                                    autoFocus
+                                  />
+                              </div>
+                              
+                              <button 
+                                onClick={() => handleShare(selectedFlower)}
+                                className="w-full bg-rose-500 text-white py-3 rounded-xl font-bold hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
+                              >
+                                <Share2 size={18} /> 편지와 함께 복사하기
+                              </button>
+                          </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </Modal>
+
+              {/* Bottom Navigation */}
+              <nav className="absolute bottom-0 w-full bg-white/90 backdrop-blur border-t border-slate-100 pb-safe z-50">
+                <div className="flex justify-around items-center p-2">
+                  {[
+                    { id: 'home', icon: Home, label: '홈' },
+                    { id: 'gacha', icon: Sparkles, label: '가챠' },
+                    { id: 'collection', icon: BookOpen, label: '도감' },
+                    { id: 'market', icon: ShoppingBag, label: '마켓' },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      className={`flex flex-col items-center p-3 rounded-2xl transition-all duration-300 w-16
+                        ${activeTab === item.id 
+                          ? 'text-rose-500 scale-105' 
+                          : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      <item.icon size={24} strokeWidth={activeTab === item.id ? 2.5 : 2} />
+                      <span className="text-[10px] font-medium mt-1">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </nav>
+            </div>
+          );
+        }
+        
+        const root = createRoot(document.getElementById('root'));
+        root.render(<FlorisApp />);
+    </script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+[
+  {
+    "id": 1,
+    "name": "벚꽃",
+    "language": "순결, 절세미인",
+    "rarity": "Rare",
+    "price": 150,
+    "description": "봄의 시작을 알리는 핑크빛 설렘.",
+    "image": "images/cherry_blossom.png"
+  },
+  {
+    "id": 2,
+    "name": "해바라기",
+    "language": "프라이드, 숭배",
+    "rarity": "Common",
+    "price": 50,
+    "description": "태양만을 바라보는 일편단심의 상징.",
+    "image": "images/sunflower.png"
+  },
+  {
+    "id": 3,
+    "name": "장미 (Red)",
+    "language": "열렬한 사랑",
+    "rarity": "Common",
+    "price": 60,
+    "description": "가장 클래식하고 정열적인 사랑의 표현.",
+    "image": "images/red_rose.png"
+  },
+  {
+    "id": 4,
+    "name": "블루 튤립",
+    "language": "영원한 사랑",
+    "rarity": "Legendary",
+    "price": 500,
+    "description": "현실에선 보기 힘든 신비로운 푸른 빛.",
+    "image": "images/blue_tulip.png"
+  },
+  {
+    "id": 5,
+    "name": "데이지",
+    "language": "순진, 평화",
+    "rarity": "Common",
+    "price": 40,
+    "description": "들판에서 마주치는 작은 기쁨.",
+    "image": "images/daisy.png"
+  },
+  {
+    "id": 6,
+    "name": "라벤더",
+    "language": "침묵, 기대",
+    "rarity": "Rare",
+    "price": 140,
+    "description": "보랏빛 향기로 마음을 치유하는 꽃.",
+    "image": "images/lavender.png"
+  },
+  {
+    "id": 7,
+    "name": "목련",
+    "language": "고귀함",
+    "rarity": "Rare",
+    "price": 160,
+    "description": "하얗고 큰 꽃잎이 우아하게 떨어지는 꽃.",
+    "image": "images/magnolia.png"
+  },
+  {
+    "id": 8,
+    "name": "물망초",
+    "language": "나를 잊지 말아요",
+    "rarity": "Rare",
+    "price": 180,
+    "description": "작고 푸른 꽃잎에 담긴 애절한 마음.",
+    "image": "images/forget_me_not.png"
+  },
+  {
+    "id": 9,
+    "name": "환상의 오로라 장미",
+    "language": "기적, 꿈",
+    "rarity": "Legendary",
+    "price": 800,
+    "description": "밤하늘의 오로라를 담은 전설의 꽃.",
+    "image": "images/aurora_rose.png"
+  },
+  {
+    "id": 10,
+    "name": "안개꽃",
+    "language": "맑은 마음, 사랑의 성공",
+    "rarity": "Common",
+    "price": 45,
+    "description": "다른 꽃을 빛내주지만 그 자체로도 아름다운.",
+    "image": "images/baby_breath.png"
+  }
+]
