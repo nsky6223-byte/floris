@@ -6,7 +6,7 @@
     "rarity": "Rare",
     "price": 150,
     "description": "봄의 시작을 알리는 핑크빛 설렘.",
-    "image": "images/cherry_blossom.png"
+    "image": "/images/cherry_blossom.png"
   },
   {
     "id": 2,
@@ -15,7 +15,7 @@
     "rarity": "Common",
     "price": 50,
     "description": "태양만을 바라보는 일편단심의 상징.",
-    "image": "images/sunflower.png"
+    "image": "/images/sunflower.png"
   },
   {
     "id": 3,
@@ -24,7 +24,7 @@
     "rarity": "Common",
     "price": 60,
     "description": "가장 클래식하고 정열적인 사랑의 표현.",
-    "image": "images/red_rose.png"
+    "image": "/images/red_rose.png"
   },
   {
     "id": 4,
@@ -33,7 +33,7 @@
     "rarity": "Legendary",
     "price": 500,
     "description": "현실에선 보기 힘든 신비로운 푸른 빛.",
-    "image": "images/blue_tulip.png"
+    "image": "/images/blue_tulip.png"
   },
   {
     "id": 5,
@@ -42,7 +42,7 @@
     "rarity": "Common",
     "price": 40,
     "description": "들판에서 마주치는 작은 기쁨.",
-    "image": "images/daisy.png"
+    "image": "/images/daisy.png"
   },
   {
     "id": 6,
@@ -51,7 +51,7 @@
     "rarity": "Rare",
     "price": 140,
     "description": "보랏빛 향기로 마음을 치유하는 꽃.",
-    "image": "images/lavender.png"
+    "image": "/images/lavender.png"
   },
   {
     "id": 7,
@@ -60,7 +60,7 @@
     "rarity": "Rare",
     "price": 160,
     "description": "하얗고 큰 꽃잎이 우아하게 떨어지는 꽃.",
-    "image": "images/magnolia.png"
+    "image": "/images/magnolia.png"
   },
   {
     "id": 8,
@@ -69,7 +69,7 @@
     "rarity": "Rare",
     "price": 180,
     "description": "작고 푸른 꽃잎에 담긴 애절한 마음.",
-    "image": "images/forget_me_not.png"
+    "image": "/images/forget_me_not.png"
   },
   {
     "id": 9,
@@ -78,7 +78,7 @@
     "rarity": "Legendary",
     "price": 800,
     "description": "밤하늘의 오로라를 담은 전설의 꽃.",
-    "image": "images/aurora_rose.png"
+    "image": "/images/aurora_rose.png"
   },
   {
     "id": 10,
@@ -87,6 +87,6 @@
     "rarity": "Common",
     "price": 45,
     "description": "다른 꽃을 빛내주지만 그 자체로도 아름다운.",
-    "image": "images/baby_breath.png"
+    "image": "/images/baby_breath.png"
   }
 ]

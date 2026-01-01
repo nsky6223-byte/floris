@@ -113,9 +113,12 @@
 
         function FlorisApp() {
           const [activeTab, setActiveTab] = useState('home');
-          const [userPoints, setUserPoints] = useState(1000);
+          const [userPoints, setUserPoints] = useState(() => {
+            const saved = localStorage.getItem('userPoints');
+            return saved ? parseInt(saved) : 1000;
+          });
           const [flowerDB, setFlowerDB] = useState([]);
-          const [sharedData, setSharedData] = useState(null);
+          const [sharedLetter, setSharedLetter] = useState(null);
 
           useEffect(() => {
             // 1. 꽃 데이터 로드
@@ -136,17 +139,32 @@
                   })
                   .then(data => {
                     if (data.success) {
-                      setSharedData(data.data);
-                      setActiveTab('shared'); // 공유 화면으로 이동
+                      setSharedLetter(data.data);
                     }
                   })
-                  .catch(err => console.error("공유 데이터 로딩 실패:", err));
+                  .catch(err => {
+                    console.error("공유 데이터 로딩 실패:", err);
+                    alert("유효하지 않거나 만료된 링크입니다.");
+                    window.location.href = "/";
+                  });
               }
             }
           }, []);
 
-          const [inventory, setInventory] = useState({}); // { flowerId: count }
+          const [inventory, setInventory] = useState(() => {
+            const saved = localStorage.getItem('inventory');
+            return saved ? JSON.parse(saved) : {};
+          });
           
+          // 데이터 자동 저장 (Persistence)
+          useEffect(() => {
+            localStorage.setItem('userPoints', userPoints);
+          }, [userPoints]);
+
+          useEffect(() => {
+            localStorage.setItem('inventory', JSON.stringify(inventory));
+          }, [inventory]);
+
           // New States for "New Arrival" logic
           const [newFlowerIds, setNewFlowerIds] = useState([]); // List of IDs that are "New" and not yet revealed/sorted
           const [sortMode, setSortMode] = useState('id'); // 'id' | 'rarity'
@@ -295,56 +313,6 @@
               setSortMode('rarity');
               showNotification("모든 새 꽃을 확인했습니다! 등급별로 정렬합니다.");
             }
-          };
-
-          const SharedView = () => {
-            if (!sharedData) return <div className="p-10 text-center text-slate-400">편지를 불러오는 중...</div>;
-            const flower = flowerDB.find(f => f.id === parseInt(sharedData.flowerId));
-            
-            return (
-                <div className="p-6 pb-24 flex flex-col items-center min-h-screen bg-rose-50/30">
-                    <div className="w-full max-w-sm mt-8 animate-in slide-in-from-bottom duration-700">
-                        <div className="text-center mb-8">
-                            <span className="bg-rose-100 text-rose-600 px-3 py-1 rounded-full text-xs font-bold">
-                                도착한 편지
-                            </span>
-                            <h2 className="text-2xl font-bold text-rose-950 mt-2">
-                                누군가 꽃을 보냈어요
-                            </h2>
-                        </div>
-
-                        <div className="bg-white p-6 rounded-3xl shadow-xl border border-rose-100 relative overflow-hidden">
-                            <div className="aspect-[3/4] rounded-2xl overflow-hidden mb-6 relative shadow-inner bg-slate-100">
-                                {flower ? (
-                                    <>
-                                        <img src={flower.image} className="w-full h-full object-cover" />
-                                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 p-4 text-white">
-                                            <p className="font-bold text-lg">{flower.name}</p>
-                                            <p className="text-xs opacity-90">{flower.language}</p>
-                                        </div>
-                                    </>
-                                ) : <div className="flex items-center justify-center h-full">로딩 중...</div>}
-                            </div>
-
-                            <div className="bg-rose-50 p-5 rounded-2xl relative">
-                                <Mail size={16} className="absolute top-4 left-4 text-rose-400" />
-                                <p className="text-slate-700 text-sm leading-relaxed pl-6 min-h-[80px] whitespace-pre-wrap">
-                                    {sharedData.letterContent}
-                                </p>
-                            </div>
-                            <div className="mt-4 text-right">
-                                <p className="text-xs text-slate-400">From.</p>
-                                <p className="text-sm font-bold text-rose-500">{sharedData.senderName || '익명의 정원사'}</p>
-                            </div>
-                        </div>
-
-                        <button onClick={() => { window.history.pushState({}, '', '/'); setActiveTab('home'); setSharedData(null); }}
-                            className="w-full mt-6 bg-rose-500 text-white py-4 rounded-2xl font-bold shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all flex items-center justify-center gap-2">
-                            <Home size={20} /> 나만의 정원 가꾸기
-                        </button>
-                    </div>
-                </div>
-            );
           };
 
           // --- Views ---
@@ -626,6 +594,40 @@
           };
 
           // --- Main Layout ---
+          if (sharedLetter) {
+            return (
+              <div className="max-w-md mx-auto h-screen bg-rose-50 overflow-y-auto relative font-sans">
+                <div className="p-6 text-center pt-20">
+                  <p className="text-rose-400 font-bold mb-4 animate-bounce">💌 편지가 도착했습니다</p>
+                  
+                  <div className="bg-white p-6 rounded-2xl shadow-xl border border-rose-100 mb-8 mx-4 transform rotate-1">
+                     <div className="aspect-[4/5] rounded-xl overflow-hidden mb-6 shadow-inner bg-slate-100">
+                       <img src={sharedLetter.flowerInfo.image} className="w-full h-full object-cover" />
+                     </div>
+                     <h2 className="text-2xl font-bold text-slate-800 mb-2">{sharedLetter.flowerInfo.name}</h2>
+                     <p className="text-rose-500 italic mb-6">"{sharedLetter.flowerInfo.language}"</p>
+                     
+                     <div className="bg-slate-50 p-4 rounded-xl text-left">
+                       <p className="text-xs text-slate-400 mb-2">From. {sharedLetter.senderName}</p>
+                       <p className="text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
+                         {sharedLetter.letterContent}
+                       </p>
+                     </div>
+                  </div>
+
+                  <button 
+                    onClick={() => {
+                      window.location.href = "/"; 
+                    }}
+                    className="bg-rose-500 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-rose-600 transition-colors"
+                  >
+                    답장하러 가기 (홈으로)
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
           return (
             <div className="max-w-md mx-auto h-screen bg-slate-50 shadow-2xl relative overflow-hidden font-sans text-slate-800 flex flex-col">
               {/* Toast Notification */}
@@ -639,7 +641,6 @@
 
               {/* Main Content Area */}
               <main className="flex-1 overflow-y-auto no-scrollbar">
-                {activeTab === 'shared' && <SharedView />}
                 {activeTab === 'home' && <HomeView />}
                 {activeTab === 'gacha' && <GachaView />}
                 {activeTab === 'collection' && <CollectionView />}

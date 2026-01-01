@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const UserFlower = require('./userflower');
-const flowersCatalog = require('../flowers.json'); // 기존 도감 파일 참조 (상위 폴더)
+const flowersCatalog = require('./flowers.json'); // 기존 도감 파일 참조
 const { v4: uuidv4 } = require('uuid'); // 토큰 생성을 위한 라이브러리 (npm install uuid 필요)
 const dbConnect = require('./dbconnect');
 
@@ -89,7 +89,7 @@ router.post('/create-link', async (req, res) => {
 });
 
 // 2. 공유 링크 접속 (편지 및 꽃 정보 확인)
-router.get('/view/:token', async (req, res) => {
+router.get('/:token', async (req, res) => {
   try {
     await dbConnect();
     const flowerInstance = await UserFlower.findOne({ 'shareInfo.token': req.params.token });
