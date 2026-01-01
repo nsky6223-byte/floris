@@ -119,6 +119,7 @@
           });
           const [flowerDB, setFlowerDB] = useState([]);
           const [sharedLetter, setSharedLetter] = useState(null);
+          const [lastBonusDate, setLastBonusDate] = useState(() => localStorage.getItem('lastBonusDate'));
 
           useEffect(() => {
             // 1. 꽃 데이터 로드
@@ -164,6 +165,10 @@
           useEffect(() => {
             localStorage.setItem('inventory', JSON.stringify(inventory));
           }, [inventory]);
+
+          useEffect(() => {
+            if (lastBonusDate) localStorage.setItem('lastBonusDate', lastBonusDate);
+          }, [lastBonusDate]);
 
           // New States for "New Arrival" logic
           const [newFlowerIds, setNewFlowerIds] = useState([]); // List of IDs that are "New" and not yet revealed/sorted
@@ -375,7 +380,11 @@
 
           // --- Views ---
 
-          const HomeView = () => (
+          const HomeView = () => {
+            const today = new Date().toDateString();
+            const isBonusAvailable = lastBonusDate !== today;
+
+            return (
             <div className="space-y-6 pb-20 p-6">
               <header className="flex justify-between items-center mb-8">
                 <div>
@@ -396,12 +405,16 @@
                   <p className="text-rose-700/80 text-sm mt-1 mb-4">매일 접속하고 100 포인트를 받으세요.</p>
                   <button 
                     onClick={() => {
+                      if (!isBonusAvailable) return;
                       setUserPoints(prev => prev + 100);
+                      setLastBonusDate(today);
                       showNotification("출석 보너스 +100P 획득!");
                     }}
-                    className="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-lg shadow-rose-200"
+                    disabled={!isBonusAvailable}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-lg 
+                      ${isBonusAvailable ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-200' : 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed'}`}
                   >
-                    보너스 받기
+                    {isBonusAvailable ? "보너스 받기" : "받기 완료"}
                   </button>
                 </div>
                 <Sparkles className="absolute right-[-10px] bottom-[-10px] text-white/40 w-32 h-32 rotate-12" />
@@ -425,7 +438,8 @@
                 </div>
               </div>
             </div>
-          );
+            );
+          };
 
           const GachaView = () => (
             <div className="flex flex-col h-full items-center justify-center p-6 pb-24 relative overflow-hidden">
