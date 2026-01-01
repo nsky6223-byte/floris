@@ -276,17 +276,55 @@
               const data = await response.json();
 
               if (data.success) {
-                // 서버가 준 완성된 메시지(링크 포함)를 복사
-                await navigator.clipboard.writeText(data.message);
-                showNotification("링크가 포함된 메시지가 복사되었습니다!");
                 setIsWritingLetter(false);
                 setLetterContent("");
+
+                // 1. 모바일 네이티브 공유 (navigator.share) 우선 시도
+                if (navigator.share) {
+                  try {
+                    await navigator.share({
+                      title: '[Floris] 꽃 선물',
+                      text: data.message,
+                    });
+                    showNotification("공유하기가 완료되었습니다.");
+                    return; // 공유 성공 시 여기서 종료
+                  } catch (err) {
+                    console.log("Native share skipped:", err);
+                    // 취소하거나 실패하면 아래 클립보드 복사 로직으로 넘어감
+                  }
+                }
+
+                // 2. 클립보드 복사 시도 (Fallback)
+                try {
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(data.message);
+                    showNotification("링크가 포함된 메시지가 복사되었습니다!");
+                  } else {
+                    throw new Error("Clipboard API unavailable");
+                  }
+                } catch (clipboardErr) {
+                  // 3. 구형 브라우저/HTTP 환경을 위한 강제 복사 (textarea trick)
+                  try {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = data.message;
+                    textArea.style.position = "fixed"; // 화면 밖으로
+                    textArea.style.left = "-9999px";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    showNotification("링크가 포함된 메시지가 복사되었습니다!");
+                  } catch (finalErr) {
+                    alert("복사하기가 지원되지 않는 환경입니다.\n아래 내용을 직접 복사해주세요.\n\n" + data.message);
+                  }
+                }
               } else {
                 showNotification("오류: " + (data.message || "공유 실패"));
               }
             } catch (error) {
               console.error("Share Error:", error);
-              showNotification("서버 연결에 실패했습니다.");
+              showNotification("오류가 발생했습니다: " + error.message);
             }
           };
 
@@ -313,6 +351,26 @@
               setSortMode('rarity');
               showNotification("모든 새 꽃을 확인했습니다! 등급별로 정렬합니다.");
             }
+          };
+
+          // --- Logic: Claim Shared Flower ---
+          const handleClaim = () => {
+            if (!sharedLetter) return;
+            const id = sharedLetter.flowerId;
+            
+            setInventory(prev => ({
+              ...prev,
+              [id]: (prev[id] || 0) + 1
+            }));
+
+            if (!inventory[id]) {
+              setNewFlowerIds(prev => [...prev, id]);
+            }
+
+            setSharedLetter(null);
+            window.history.pushState({}, '', '/');
+            setActiveTab('collection');
+            setTimeout(() => showNotification(`${sharedLetter.flowerInfo.name}을(를) 도감에 저장했습니다!`), 300);
           };
 
           // --- Views ---
@@ -615,14 +673,20 @@
                      </div>
                   </div>
 
-                  <button 
-                    onClick={() => {
-                      window.location.href = "/"; 
-                    }}
-                    className="bg-rose-500 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-rose-600 transition-colors"
-                  >
-                    답장하러 가기 (홈으로)
-                  </button>
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => { window.location.href = "/"; }}
+                      className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors"
+                    >
+                      홈으로
+                    </button>
+                    <button 
+                      onClick={handleClaim}
+                      className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-rose-600 transition-colors"
+                    >
+                      꽃 받기
+                    </button>
+                  </div>
                 </div>
               </div>
             );
