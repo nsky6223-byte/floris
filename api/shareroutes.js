@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const UserFlower = require('./userflower');
-const flowersCatalog = require('./flowers.json'); // 기존 도감 파일 참조
+const flowersCatalog = require('../flowers.json'); // 기존 도감 파일 참조 (상위 폴더)
 const { v4: uuidv4 } = require('uuid'); // 토큰 생성을 위한 라이브러리 (npm install uuid 필요)
 const dbConnect = require('./dbconnect');
 
@@ -95,22 +95,26 @@ router.get('/view/:token', async (req, res) => {
     const flowerInstance = await UserFlower.findOne({ 'shareInfo.token': req.params.token });
     
     if (!flowerInstance) {
-      return res.status(404).json({ message: "유효하지 않은 링크입니다." });
+      return res.status(404).json({ success: false, message: "유효하지 않은 링크입니다." });
     }
 
     const flowerInfo = flowersCatalog.find(f => f.id === flowerInstance.flowerId);
     if (!flowerInfo) {
-      return res.status(500).json({ message: "꽃 정보를 불러올 수 없습니다." });
+      return res.status(500).json({ success: false, message: "꽃 정보를 불러올 수 없습니다." });
     }
 
     res.json({
-      senderName: flowerInstance.shareInfo.senderName,
-      letterContent: flowerInstance.shareInfo.letterContent,
-      flowerInfo: flowerInfo // 이미지, 이름 등 도감 정보 포함
+      success: true,
+      data: {
+        senderName: flowerInstance.shareInfo.senderName,
+        letterContent: flowerInstance.shareInfo.letterContent,
+        flowerId: flowerInstance.flowerId, // 프론트엔드에서 찾을 수 있도록 ID 추가
+        flowerInfo: flowerInfo
+      }
     });
 
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
