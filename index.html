@@ -565,6 +565,7 @@
                 <p className="text-slate-500 text-sm">어떤 꽃이 피어날까요? ({GACHA_COST}P)</p>
               </div>
 
+              {!gachaResult && (
               <div className="relative w-64 h-64 mb-8 flex items-center justify-center">
                 {/* Animated Circle Background */}
                 <div className={`absolute inset-0 rounded-full border-2 border-dashed border-rose-200 ${isGachaAnimating ? 'animate-spin-slow' : ''}`} />
@@ -580,6 +581,7 @@
                     </div>
                 </div>
               </div>
+              )}
 
               {/* Action Area */}
               {!gachaResult ? (
@@ -1045,6 +1047,7 @@
               </Modal>
 
               {/* Bottom Navigation */}
+              {!isWritingLetter && (
               <nav className="absolute bottom-0 w-full bg-white/90 backdrop-blur border-t border-slate-100 pb-safe z-50">
                 <div className="flex justify-around items-center p-2">
                   {[
@@ -1068,6 +1071,7 @@
                   ))}
                 </div>
               </nav>
+              )}
             </div>
           );
         }
