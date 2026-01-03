@@ -53,15 +53,25 @@ passport.use(new KakaoStrategy({
 app.get('/api/auth/kakao', passport.authenticate('kakao', { session: false }));
 
 // 라우트: 카카오 로그인 콜백
-app.get('/api/auth/kakao/callback',
-  passport.authenticate('kakao', { session: false, failureRedirect: '/' }),
-  (req, res) => {
+app.get('/api/auth/kakao/callback', (req, res, next) => {
+  passport.authenticate('kakao', { session: false }, (err, user, info) => {
+    if (err) {
+      console.error("Kakao Login Error:", err);
+      return res.status(500).send(`
+        <h3>로그인 에러 발생 🚨</h3>
+        <p><b>에러 내용:</b> ${err.message}</p>
+        <p><b>해결 팁:</b> Vercel 환경변수에 <code>MONGODB_URI</code>가 없거나 잘못되었습니다.</p>
+        <a href="/">홈으로 돌아가기</a>
+      `);
+    }
+    if (!user) return res.redirect('/');
+
     // JWT 토큰 생성
-    const token = jwt.sign({ id: req.user._id, snsId: req.user.snsId }, process.env.JWT_SECRET || 'secret_key', { expiresIn: '7d' });
+    const token = jwt.sign({ id: user._id, snsId: user.snsId }, process.env.JWT_SECRET || 'secret_key', { expiresIn: '7d' });
     // 프론트엔드로 리다이렉트 (토큰 전달)
-    res.redirect(`${FRONTEND_URL}/?token=${token}&nickname=${encodeURIComponent(req.user.nickname)}`);
-  }
-);
+    res.redirect(`${FRONTEND_URL}/?token=${token}&nickname=${encodeURIComponent(user.nickname || '정원사')}`);
+  })(req, res, next);
+});
 
 // 라우트 설정 (프론트엔드 요청 경로: /api/share/...)
 app.use('/api/share', shareRoutes);
