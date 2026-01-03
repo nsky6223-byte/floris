@@ -61,11 +61,15 @@ router.post('/create-link', async (req, res) => {
     const shareUrl = `${FRONTEND_URL}/share/${shareToken}`;
 
     // 공유용 메시지 (내용 숨김)
-    const simpleDescription = "편지와 함께 꽃이 도착했습니다. 24시간 내 확인 하지 않으면 꽃이 시들어요!";
-    const buttonTitle = "매일 피어나는 꽃말 도감, 플로리스에서 확인하세요.";
+    let simpleDescription = "🌸 편지와 함께 꽃이 도착했습니다. 24시간 내 확인 하지 않으면 꽃이 시들어요!";
+    if (senderName && senderName !== "익명의 정원사") {
+      simpleDescription = `🌸 ${senderName}님으로부터 편지와 함께 꽃이 도착했습니다.\n24시간 내 확인 하지 않으면 꽃이 시들어요!`;
+    }
+
+    const buttonTitle = "매일 피어나는 작은 정원, 플로리스에서 확인하세요.";
 
     // 복사 붙여넣기용 전체 텍스트 구성 (링크 포함)
-    const fullMessage = `[Floris] 당신에게 꽃을 보냅니다.\n\n${simpleDescription}\n\n${buttonTitle}\n${shareUrl}`;
+    const fullMessage = `[Floris] 일상에 꽃을 심다\n\n${simpleDescription}\n\n${buttonTitle}\n${shareUrl}`;
 
     res.json({
       success: true,
@@ -74,7 +78,7 @@ router.post('/create-link', async (req, res) => {
       message: fullMessage,
       // 2. 카카오톡 공유하기용 데이터 (요청하신 포맷)
       kakaoOptions: {
-        title: "[Floris] 당신에게 꽃을 보냅니다.",
+        title: "[Floris] 일상에 꽃을 심다",
         description: simpleDescription,
         imageUrl: `${FRONTEND_URL}${flowerInfo.image}`,
         buttonTitle: buttonTitle,
