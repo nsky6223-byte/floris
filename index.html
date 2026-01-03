@@ -234,7 +234,14 @@
             // 1. 꽃 데이터 로드
             fetch('/flowers.json')
               .then(res => res.json())
-              .then(data => setFlowerDB(data))
+              .then(data => {
+                setFlowerDB(data);
+                // 이미지 미리 로딩 (Preload)
+                data.forEach(flower => {
+                    const img = new Image();
+                    img.src = flower.image;
+                });
+              })
               .catch(err => console.error("데이터 로딩 실패:", err));
 
             // 2. 공유 링크 확인 (/share/토큰)

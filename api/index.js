@@ -10,11 +10,33 @@ const UserFlower = require('./userflower');
 const flowersCatalog = require('./flowers.json');
 const dbConnect = require('./dbconnect');
 const { getUserFromToken } = require('./auth');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://floris-ebon.vercel.app';
 
+// Vercel(Proxy) 환경에서 정확한 IP 파악을 위해 필수
+app.set('trust proxy', 1);
+
 // 미들웨어 설정
+// Rate Limiter: 15분 동안 최대 100회 요청 가능
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15분
+  max: 100, // IP당 허용 요청 수
+  standardHeaders: true, // RateLimit-* 헤더 반환
+  legacyHeaders: false, // X-RateLimit-* 헤더 비활성화
+  message: { message: "요청이 너무 많습니다. 잠시 후 다시 시도해주세요." }
+});
+app.use(limiter); // 모든 요청에 제한 적용
+
+// 가챠 전용 Rate Limiter: 1분 동안 최대 10회 요청 가능 (매크로 방지)
+const gachaLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1분
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "가챠 요청이 너무 빠릅니다. 잠시 후 다시 시도해주세요." }
+});
 app.use(cors());
 app.use(express.json());
 app.use(passport.initialize());
@@ -144,7 +166,7 @@ app.get('/api/user/me', async (req, res) => {
 });
 
 // 2. 가챠 (서버에서 실행)
-app.post('/api/user/gacha', async (req, res) => {
+app.post('/api/user/gacha', gachaLimiter, async (req, res) => {
   const user = getUserFromToken(req);
   if (!user) return res.status(401).json({ message: "Unauthorized" });
 
