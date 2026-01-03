@@ -141,6 +141,29 @@
           const [isLoggedIn, setIsLoggedIn] = useState(false);
           const [userInfo, setUserInfo] = useState({ nickname: '' });
 
+          // 데이터 동기화 함수 (수동 새로고침용)
+          const refreshUserData = () => {
+            const token = localStorage.getItem('authToken');
+            if (!token) return;
+
+            showNotification("데이터를 동기화 중...");
+            fetch('/api/user/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.points !== undefined) {
+                    setUserPoints(data.points);
+                    setInventory(data.inventory);
+                    setGiftBox(data.giftBox);
+                    showNotification("최신 정보를 불러왔습니다!");
+                }
+            })
+            .catch(() => {
+                showNotification("동기화 실패");
+            });
+          };
+
           useEffect(() => {
             // 1. URL에서 토큰 확인 (로그인 콜백 처리)
             const params = new URLSearchParams(window.location.search);
@@ -675,10 +698,15 @@
                     </button>
                   )}
                 </div>
-                <div className="bg-white/80 backdrop-blur px-3 py-1.5 rounded-full border border-rose-100 flex items-center gap-2 shadow-sm">
+                <button 
+                  onClick={refreshUserData}
+                  className="bg-white/80 backdrop-blur px-3 py-1.5 rounded-full border border-rose-100 flex items-center gap-2 shadow-sm hover:bg-rose-50 transition-colors active:scale-95"
+                  title="눌러서 데이터 동기화"
+                >
                   <div className="w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-[10px] text-yellow-800 font-bold">P</div>
                   <span className="font-bold text-rose-950 text-sm">{userPoints.toLocaleString()}</span>
-                </div>
+                  <RefreshCw size={12} className="text-slate-400" />
+                </button>
               </header>
 
               {/* Daily Bonus Section */}
