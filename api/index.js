@@ -17,8 +17,13 @@ app.use(express.json());
 app.use(passport.initialize());
 
 // Passport 설정 (Kakao)
+// KAKAO_CLIENT_ID가 없어도 서버가 죽지 않도록 예외 처리 (임시 값 할당)
+if (!process.env.KAKAO_CLIENT_ID) {
+  console.error("⚠️ CRITICAL: KAKAO_CLIENT_ID 환경변수가 없습니다. Vercel 설정을 확인하세요.");
+}
+
 passport.use(new KakaoStrategy({
-    clientID: process.env.KAKAO_CLIENT_ID,
+    clientID: process.env.KAKAO_CLIENT_ID || "MISSING_KEY", 
     callbackURL: `${FRONTEND_URL}/api/auth/kakao/callback`
   },
   async (accessToken, refreshToken, profile, done) => {
