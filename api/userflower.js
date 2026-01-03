@@ -17,17 +17,20 @@ const userFlowerSchema = new mongoose.Schema({
   // 핵심 기능: 공유 및 선물 제한 플래그
   isGift: {
     type: Boolean,
-    default: false // true면 선물 받은 꽃 (재공유 불가)
+    default: false // true면 선물 받은 꽃 (도감이 아닌 편지함에 표시, 재거래 불가)
   },
   isShared: {
     type: Boolean,
-    default: false // true면 이미 공유한 꽃 (중복 공유 불가)
+    default: false // true면 이미 공유하여 소모된 꽃 (내 도감에서 숨김)
   },
   // 편지 및 공유 정보
   shareInfo: {
     token: { type: String, unique: true, sparse: true }, // 공유 링크용 고유 토큰
     letterContent: String, // 편지 내용
-    senderName: String     // 보낸 사람 이름
+    senderName: String,    // 보낸 사람 이름
+    letterStyle: String,   // 편지지 스타일 (배경색 클래스 등)
+    receivedAt: Date,      // 선물 받은 날짜 기록용
+    claimed: { type: Boolean, default: false } // 이미 수령된 선물인지 확인
   }
 });
 

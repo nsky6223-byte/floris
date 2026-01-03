@@ -10,7 +10,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'https://floris-ebon.vercel.app
 // 1. 꽃 공유하기 (링크 생성)
 router.post('/create-link', async (req, res) => {
   // userFlowerId(DB 고유 ID) 또는 flowerId(도감 번호) 둘 중 하나는 있어야 함
-  const { userFlowerId, flowerId, letterContent, senderName } = req.body;
+  const { userFlowerId, flowerId, letterContent, senderName, letterStyle } = req.body;
 
   try {
     await dbConnect();
@@ -51,7 +51,8 @@ router.post('/create-link', async (req, res) => {
     flowerInstance.shareInfo = {
       token: shareToken,
       letterContent: letterContent,
-      senderName: senderName
+      senderName: senderName,
+      letterStyle: letterStyle || "bg-rose-50" // 기본값 설정
     };
 
     await flowerInstance.save();
@@ -74,7 +75,7 @@ router.post('/create-link', async (req, res) => {
       kakaoOptions: {
         title: "[Floris] 당신에게 꽃을 보냅니다.",
         description: simpleDescription,
-        imageUrl: `${FRONTEND_URL}/${flowerInfo.image}`,
+        imageUrl: `${FRONTEND_URL}${flowerInfo.image}`,
         buttonTitle: buttonTitle,
         link: {
           mobileWebUrl: shareUrl,
@@ -98,6 +99,11 @@ router.get('/:token', async (req, res) => {
       return res.status(404).json({ success: false, message: "유효하지 않은 링크입니다." });
     }
 
+    // 이미 수령된 선물인지 확인 (UI 표시용)
+    if (flowerInstance.shareInfo && flowerInstance.shareInfo.claimed) {
+      return res.status(410).json({ success: false, message: "이미 누군가 수령한 선물입니다." });
+    }
+
     const flowerInfo = flowersCatalog.find(f => f.id === flowerInstance.flowerId);
     if (!flowerInfo) {
       return res.status(500).json({ success: false, message: "꽃 정보를 불러올 수 없습니다." });
@@ -108,6 +114,7 @@ router.get('/:token', async (req, res) => {
       data: {
         senderName: flowerInstance.shareInfo.senderName,
         letterContent: flowerInstance.shareInfo.letterContent,
+        letterStyle: flowerInstance.shareInfo.letterStyle || "bg-rose-50",
         flowerId: flowerInstance.flowerId, // 프론트엔드에서 찾을 수 있도록 ID 추가
         flowerInfo: flowerInfo
       }
@@ -136,6 +143,11 @@ router.post('/claim', async (req, res) => {
       return res.status(404).json({ message: "잘못된 접근입니다." });
     }
 
+    // 이미 수령된 선물인지 확인 (보안)
+    if (originalFlower.shareInfo && originalFlower.shareInfo.claimed) {
+      return res.status(410).json({ message: "이미 수령 완료된 선물입니다." });
+    }
+
     // 본인이 보낸 꽃을 본인이 받는 경우 방지 (선택 사항)
     if (originalFlower.userId === receiverUserId) {
       return res.status(400).json({ message: "자신이 보낸 꽃은 받을 수 없습니다." });
@@ -146,10 +158,20 @@ router.post('/claim', async (req, res) => {
       userId: receiverUserId,
       flowerId: originalFlower.flowerId,
       isGift: true,   // 중요: 선물 받음 처리 (재공유 불가)
-      isShared: false // 아직 공유 안 함
+      isShared: false, // 아직 공유 안 함
+      shareInfo: {
+        senderName: originalFlower.shareInfo.senderName,
+        letterContent: originalFlower.shareInfo.letterContent,
+        letterStyle: originalFlower.shareInfo.letterStyle || "bg-rose-50",
+        receivedAt: new Date()
+      }
     });
 
     await newFlower.save();
+
+    // 원본 꽃을 '수령됨' 상태로 변경
+    originalFlower.shareInfo.claimed = true;
+    await originalFlower.save();
 
     res.json({ success: true, message: "꽃이 도감에 추가되었습니다!" });
 

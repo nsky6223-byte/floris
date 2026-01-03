@@ -30,9 +30,9 @@
     <div id="root"></div>
 
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect } from 'https://esm.sh/react@18.2.0?dev';
+        import React, { useState, useEffect, useMemo } from 'https://esm.sh/react@18.2.0?dev';
         import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client?dev';
-        import { Sparkles, BookOpen, ShoppingBag, Home, Share2, Flower, X, ArrowRight, RefreshCw, Star, Mail, CheckCircle, ArrowUpRight } from 'https://esm.sh/lucide-react@0.263.1?dev';
+        import { Sparkles, BookOpen, ShoppingBag, Home, Share2, Flower, X, ArrowRight, RefreshCw, Star, Mail, CheckCircle, ArrowUpRight, Gift } from 'https://esm.sh/lucide-react@0.263.1?dev';
 
         // --- 1. Mock Data (데이터셋 시뮬레이션) ---
 
@@ -60,6 +60,8 @@
         const FlowerCard = ({ flower, onClick, showCount, count, isNew }) => (
           <div 
             onClick={() => onClick && onClick(flower)}
+            role="button"
+            tabIndex={0}
             className="group relative bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 border border-slate-100 cursor-pointer"
           >
             <div className="aspect-[4/5] relative overflow-hidden">
@@ -153,8 +155,22 @@
           }, []);
 
           const [inventory, setInventory] = useState(() => {
-            const saved = localStorage.getItem('inventory');
-            return saved ? JSON.parse(saved) : {};
+            try {
+              const saved = localStorage.getItem('inventory');
+              return saved ? JSON.parse(saved) : {};
+            } catch (e) {
+              return {};
+            }
+          });
+
+          // 선물함 상태 (Gift Box)
+          const [giftBox, setGiftBox] = useState(() => {
+            try {
+              const saved = localStorage.getItem('giftBox');
+              return saved ? JSON.parse(saved) : [];
+            } catch (e) {
+              return [];
+            }
           });
           
           // 데이터 자동 저장 (Persistence)
@@ -167,11 +183,27 @@
           }, [inventory]);
 
           useEffect(() => {
+            localStorage.setItem('giftBox', JSON.stringify(giftBox));
+          }, [giftBox]);
+
+          useEffect(() => {
             if (lastBonusDate) localStorage.setItem('lastBonusDate', lastBonusDate);
           }, [lastBonusDate]);
 
           // New States for "New Arrival" logic
-          const [newFlowerIds, setNewFlowerIds] = useState([]); // List of IDs that are "New" and not yet revealed/sorted
+          const [newFlowerIds, setNewFlowerIds] = useState(() => {
+            try {
+              const saved = localStorage.getItem('newFlowerIds');
+              return saved ? JSON.parse(saved) : [];
+            } catch (e) {
+              return [];
+            }
+          });
+
+          useEffect(() => {
+            localStorage.setItem('newFlowerIds', JSON.stringify(newFlowerIds));
+          }, [newFlowerIds]);
+
           const [sortMode, setSortMode] = useState('id'); // 'id' | 'rarity'
           const [isRevealing, setIsRevealing] = useState(false); // Mode for revealing new flowers
           const [revealIndex, setRevealIndex] = useState(0);
@@ -181,6 +213,17 @@
           // Letter Writing State
           const [isWritingLetter, setIsWritingLetter] = useState(false);
           const [letterContent, setLetterContent] = useState("");
+          const [senderName, setSenderName] = useState("");
+          const [letterStyle, setLetterStyle] = useState("bg-rose-50");
+
+          const LETTER_STYLES = [
+            { bg: 'bg-rose-50', border: 'border-rose-100', text: 'text-rose-800', sub: 'text-rose-400', placeholder: 'placeholder:text-rose-300/70', ring: 'ring-rose-200' },
+            { bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-800', sub: 'text-blue-400', placeholder: 'placeholder:text-blue-300/70', ring: 'ring-blue-200' },
+            { bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-800', sub: 'text-emerald-400', placeholder: 'placeholder:text-emerald-300/70', ring: 'ring-emerald-200' },
+            { bg: 'bg-amber-50', border: 'border-amber-100', text: 'text-amber-800', sub: 'text-amber-400', placeholder: 'placeholder:text-amber-300/70', ring: 'ring-amber-200' },
+            { bg: 'bg-purple-50', border: 'border-purple-100', text: 'text-purple-800', sub: 'text-purple-400', placeholder: 'placeholder:text-purple-300/70', ring: 'ring-purple-200' },
+            { bg: 'bg-slate-100', border: 'border-slate-200', text: 'text-slate-800', sub: 'text-slate-400', placeholder: 'placeholder:text-slate-400', ring: 'ring-slate-200' },
+          ];
 
           // Gacha State
           const [isGachaAnimating, setIsGachaAnimating] = useState(false);
@@ -218,7 +261,13 @@
               if (rand > 1 - GACHA_RATES.Legendary) selectedRarity = "Legendary";
               else if (rand > 1 - (GACHA_RATES.Legendary + GACHA_RATES.Rare)) selectedRarity = "Rare";
 
-              const pool = flowerDB.filter(f => f.rarity === selectedRarity);
+              let pool = flowerDB.filter(f => f.rarity === selectedRarity);
+              
+              // 안전 장치: 해당 등급의 꽃이 없으면 전체 풀에서 선택 (오류 방지)
+              if (pool.length === 0) {
+                pool = flowerDB;
+              }
+
               const pickedFlower = pool[Math.floor(Math.random() * pool.length)];
 
               const isFirstTime = !inventory[pickedFlower.id];
@@ -268,9 +317,20 @@
                 body: JSON.stringify({
                   flowerId: flower.id, // 도감 번호 전송
                   letterContent: letterContent,
-                  senderName: "익명의 정원사" // 필요시 입력받도록 수정 가능
+                  senderName: senderName || "익명의 정원사",
+                  letterStyle: letterStyle
                 }),
               });
+
+              // 성공 시 인벤토리에서 차감 (소모성 선물 로직)
+              if (response.ok) {
+                 setInventory(prev => {
+                    const newState = { ...prev };
+                    newState[flower.id]--;
+                    if (newState[flower.id] === 0) delete newState[flower.id];
+                    return newState;
+                 });
+              }
 
               // 응답 상태 확인 (에러 처리 강화)
               if (!response.ok) {
@@ -283,6 +343,8 @@
               if (data.success) {
                 setIsWritingLetter(false);
                 setLetterContent("");
+                setSenderName("");
+                setLetterStyle("bg-rose-50");
 
                 // 1. 모바일 네이티브 공유 (navigator.share) 우선 시도
                 if (navigator.share) {
@@ -363,19 +425,16 @@
             if (!sharedLetter) return;
             const id = sharedLetter.flowerId;
             
-            setInventory(prev => ({
-              ...prev,
-              [id]: (prev[id] || 0) + 1
-            }));
-
-            if (!inventory[id]) {
-              setNewFlowerIds(prev => [...prev, id]);
-            }
+            // 선물함에 추가 (도감이 아님)
+            setGiftBox(prev => [...prev, {
+                ...sharedLetter,
+                receivedAt: new Date().toISOString()
+            }]);
 
             setSharedLetter(null);
             window.history.pushState({}, '', '/');
-            setActiveTab('collection');
-            setTimeout(() => showNotification(`${sharedLetter.flowerInfo.name}을(를) 도감에 저장했습니다!`), 300);
+            setActiveTab('giftbox'); // 편지함으로 이동
+            setTimeout(() => showNotification(`${sharedLetter.flowerInfo.name}이(가) 편지함에 도착했습니다!`), 300);
           };
 
           // --- Views ---
@@ -507,19 +566,23 @@
           );
 
           const CollectionView = () => {
-            let myFlowerIds = Object.keys(inventory);
-
-            // Sorting Logic
-            if (sortMode === 'rarity') {
-                const rarityOrder = { "Legendary": 3, "Rare": 2, "Common": 1 };
-                myFlowerIds.sort((a, b) => {
-                    const flowerA = flowerDB.find(f => f.id === parseInt(a));
-                    const flowerB = flowerDB.find(f => f.id === parseInt(b));
-                    return rarityOrder[flowerB.rarity] - rarityOrder[flowerA.rarity] || flowerA.id - flowerB.id;
-                });
-            } else {
-                myFlowerIds.sort((a, b) => parseInt(a) - parseInt(b));
-            }
+            // useMemo를 사용하여 렌더링 최적화 (불필요한 재정렬 방지)
+            const myFlowerIds = useMemo(() => {
+              let ids = Object.keys(inventory);
+              // Sorting Logic
+              if (sortMode === 'rarity') {
+                  const rarityOrder = { "Legendary": 3, "Rare": 2, "Common": 1 };
+                  ids.sort((a, b) => {
+                      const flowerA = flowerDB.find(f => f.id === parseInt(a));
+                      const flowerB = flowerDB.find(f => f.id === parseInt(b));
+                      if (!flowerA || !flowerB) return 0;
+                      return rarityOrder[flowerB.rarity] - rarityOrder[flowerA.rarity] || flowerA.id - flowerB.id;
+                  });
+              } else {
+                  ids.sort((a, b) => parseInt(a) - parseInt(b));
+              }
+              return ids;
+            }, [inventory, sortMode, flowerDB]);
             
             return (
               <div className="p-6 pb-24">
@@ -576,8 +639,58 @@
             );
           };
 
+          const GiftBoxView = () => {
+            return (
+              <div className="p-6 pb-24">
+                <h2 className="text-2xl font-bold text-rose-950 mb-6 flex items-center gap-2">
+                    <Gift className="text-rose-500" /> 꽃 편지함
+                    <span className="text-slate-400 text-lg font-normal">({giftBox.length})</span>
+                </h2>
+
+                {giftBox.length === 0 ? (
+                  <div className="text-center py-20 text-slate-400">
+                    <Mail size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>아직 받은 편지가 없어요.<br/>친구에게 꽃을 선물해보세요.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4">
+                    {giftBox.map((gift, idx) => (
+                      <div key={idx} className="bg-white p-4 rounded-2xl shadow-sm border border-rose-100 flex gap-4 items-center cursor-pointer hover:shadow-md transition-all"
+                           onClick={() => {
+                               // 편지 상세 보기 (간이 모달 재사용)
+                               setSharedLetter({
+                                   flowerId: gift.flowerId,
+                                   flowerInfo: gift.flowerInfo,
+                                   senderName: gift.senderName,
+                                   letterContent: gift.letterContent,
+                                   letterStyle: gift.letterStyle
+                               });
+                           }}
+                      >
+                        <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
+                            <img src={gift.flowerInfo.image} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start">
+                                <h3 className="font-bold text-slate-800 truncate">{gift.flowerInfo.name}</h3>
+                                <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">
+                                    {new Date(gift.receivedAt).toLocaleDateString()}
+                                </span>
+                            </div>
+                            <p className="text-xs text-rose-500 font-medium mb-1">From. {gift.senderName}</p>
+                            <p className="text-sm text-slate-600 truncate">"{gift.letterContent}"</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          };
+
           const MarketView = () => {
-            const duplicates = Object.keys(inventory).filter(id => inventory[id] > 1);
+            // useMemo를 사용하여 렌더링 최적화
+            const duplicates = useMemo(() => Object.keys(inventory).filter(id => inventory[id] > 1), [inventory]);
 
             return (
               <div className="p-6 pb-24">
@@ -671,6 +784,9 @@
 
           // --- Main Layout ---
           if (sharedLetter) {
+            // 저장된 스타일 찾기 (없으면 기본값)
+            const currentStyle = LETTER_STYLES.find(s => s.bg === sharedLetter.letterStyle) || LETTER_STYLES[0];
+
             return (
               <div className="max-w-md mx-auto h-[100dvh] bg-rose-50 overflow-y-auto relative font-sans">
                 <div className="p-6 text-center pt-20">
@@ -683,9 +799,9 @@
                      <h2 className="text-2xl font-bold text-slate-800 mb-2">{sharedLetter.flowerInfo.name}</h2>
                      <p className="text-rose-500 italic mb-6">"{sharedLetter.flowerInfo.language}"</p>
                      
-                     <div className="bg-slate-50 p-4 rounded-xl text-left">
-                       <p className="text-xs text-slate-400 mb-2">From. {sharedLetter.senderName}</p>
-                       <p className="text-slate-700 whitespace-pre-wrap leading-relaxed font-medium">
+                     <div className={`${currentStyle.bg} p-6 rounded-xl text-left border ${currentStyle.border}`}>
+                       <p className={`text-xs ${currentStyle.sub} mb-2 font-bold`}>From. {sharedLetter.senderName}</p>
+                       <p className={`${currentStyle.text} whitespace-pre-wrap leading-relaxed font-medium`}>
                          {sharedLetter.letterContent}
                        </p>
                      </div>
@@ -702,7 +818,7 @@
                       onClick={handleClaim}
                       className="flex-1 bg-rose-500 text-white py-3 rounded-xl font-bold shadow-lg hover:bg-rose-600 transition-colors"
                     >
-                      꽃 받기
+                      내 편지함에 보관하기
                     </button>
                   </div>
                 </div>
@@ -726,6 +842,7 @@
                 {activeTab === 'home' && <HomeView />}
                 {activeTab === 'gacha' && <GachaView />}
                 {activeTab === 'collection' && <CollectionView />}
+                {activeTab === 'giftbox' && <GiftBoxView />}
                 {activeTab === 'market' && <MarketView />}
               </main>
 
@@ -756,7 +873,10 @@
 
                     <div className="p-6">
                       {/* Content Switch: Info vs Letter */}
-                      {!isWritingLetter ? (
+                      {(() => {
+                        const currentStyle = LETTER_STYLES.find(s => s.bg === letterStyle) || LETTER_STYLES[0];
+                        return (
+                      !isWritingLetter ? (
                           <>
                             <h2 className="text-2xl font-bold text-rose-950 mb-1">{selectedFlower.name}</h2>
                             <p className="text-rose-500 font-medium italic mb-4">"{selectedFlower.language}"</p>
@@ -795,15 +915,37 @@
                                   <button onClick={() => setIsWritingLetter(false)} className="text-xs text-slate-400 underline">취소</button>
                               </div>
                               
-                              <div className="bg-rose-50 p-4 rounded-xl mb-4 border border-rose-100">
-                                  <p className="text-xs text-rose-400 mb-2 font-bold">To. 소중한 사람에게</p>
+                              {/* Style Selector */}
+                              <div className="flex gap-3 mb-4 justify-center bg-slate-50 p-3 rounded-xl">
+                                {LETTER_STYLES.map(style => (
+                                  <button
+                                    key={style.bg}
+                                    onClick={() => setLetterStyle(style.bg)}
+                                    className={`w-6 h-6 rounded-full ${style.bg} border-2 transition-all ${letterStyle === style.bg ? 'border-slate-500 scale-125 shadow-sm' : 'border-transparent hover:scale-110'}`}
+                                    aria-label={style.bg}
+                                  />
+                                ))}
+                              </div>
+
+                              <div className={`${currentStyle.bg} p-4 rounded-xl mb-4 border ${currentStyle.border} transition-colors duration-300`}>
+                                  <p className={`text-xs ${currentStyle.sub} mb-2 font-bold`}>To. 소중한 사람에게</p>
                                   <textarea 
                                     value={letterContent}
                                     onChange={(e) => setLetterContent(e.target.value)}
                                     placeholder="이 꽃과 함께 전할 마음을 적어보세요..."
-                                    className="w-full bg-transparent border-none focus:ring-0 text-slate-700 text-sm placeholder:text-rose-300/70 resize-none h-24 p-0"
+                                    className={`w-full bg-transparent border-none focus:ring-0 ${currentStyle.text} text-sm ${currentStyle.placeholder} resize-none h-24 p-0`}
                                     autoFocus
                                   />
+                                  <div className={`mt-4 pt-4 border-t ${currentStyle.border} flex items-center gap-2`}>
+                                    <span className={`text-xs ${currentStyle.sub} font-bold whitespace-nowrap`}>From.</span>
+                                    <input 
+                                      type="text"
+                                      value={senderName}
+                                      onChange={(e) => setSenderName(e.target.value)}
+                                      placeholder="보내는 사람 (선택)"
+                                      className={`w-full bg-transparent border-none focus:ring-0 ${currentStyle.text} text-sm ${currentStyle.placeholder} p-0`}
+                                    />
+                                  </div>
                               </div>
                               
                               <button 
@@ -813,7 +955,9 @@
                                 <Share2 size={18} /> 편지와 함께 복사하기
                               </button>
                           </div>
-                      )}
+                      )
+                        );
+                      })()}
                     </div>
                   </div>
                 )}
@@ -826,6 +970,7 @@
                     { id: 'home', icon: Home, label: '홈' },
                     { id: 'gacha', icon: Sparkles, label: '가챠' },
                     { id: 'collection', icon: BookOpen, label: '도감' },
+                    { id: 'giftbox', icon: Gift, label: '편지함' },
                     { id: 'market', icon: ShoppingBag, label: '마켓' },
                   ].map((item) => (
                     <button
