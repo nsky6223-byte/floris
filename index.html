@@ -156,6 +156,28 @@
               
               setIsLoggedIn(true);
               setUserInfo({ nickname: nickname });
+              
+              // 로그인 시 서버 데이터 동기화
+              fetch('/api/user/me', {
+                headers: { 'Authorization': `Bearer ${token}` }
+              })
+              .then(res => res.json())
+              .then(data => {
+                if (data.points !== undefined) {
+                  setUserPoints(data.points);
+                  setInventory(data.inventory);
+                  setGiftBox(data.giftBox);
+                  
+                  // 인벤토리 기반으로 newFlowerIds 복구 (임시)
+                  // 실제로는 서버에서 '도감 달성률'을 따로 관리하는 것이 좋음
+                  const ownedIds = Object.keys(data.inventory).map(Number);
+                  setNewFlowerIds(prev => {
+                     // 기존 로컬 데이터와 합치기
+                     const combined = new Set([...prev, ...ownedIds]);
+                     return Array.from(combined);
+                  });
+                }
+              });
             } else {
               // 2. 로컬 스토리지 확인 (기존 로그인 유지)
               const savedToken = localStorage.getItem('authToken');
@@ -163,6 +185,24 @@
               if (savedToken) {
                 setIsLoggedIn(true);
                 setUserInfo({ nickname: savedNickname || '정원사' });
+                
+                // 재접속 시 데이터 동기화
+                fetch('/api/user/me', {
+                    headers: { 'Authorization': `Bearer ${savedToken}` }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.points !== undefined) {
+                        setUserPoints(data.points);
+                        setInventory(data.inventory);
+                        setGiftBox(data.giftBox);
+                        const ownedIds = Object.keys(data.inventory).map(Number);
+                        setNewFlowerIds(prev => Array.from(new Set([...prev, ...ownedIds])));
+                    }
+                })
+                .catch(() => {
+                    // 토큰 만료 시 로그아웃 처리 등
+                });
               }
             }
           }, []);
@@ -291,6 +331,44 @@
                 return;
             }
 
+            // 로그인 상태면 서버 API 사용
+            if (isLoggedIn) {
+                const token = localStorage.getItem('authToken');
+                setIsGachaAnimating(true);
+                setGachaResult(null);
+
+                fetch('/api/user/gacha', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                })
+                .then(res => res.json())
+                .then(data => {
+                    setTimeout(() => {
+                        if (data.success) {
+                            setUserPoints(data.points);
+                            setInventory(prev => ({
+                                ...prev,
+                                [data.flower.id]: (prev[data.flower.id] || 0) + 1
+                            }));
+                            if (data.isNew) {
+                                setNewFlowerIds(prev => [...prev, data.flower.id]);
+                                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#fb7185', '#f472b6', '#e879f9', '#ffffff'] });
+                            }
+                            setGachaResult({ flower: data.flower, isNew: data.isNew });
+                        } else {
+                            showNotification(data.message || "오류가 발생했습니다.");
+                        }
+                        setIsGachaAnimating(false);
+                    }, 2000); // 애니메이션 시간 보장
+                })
+                .catch(err => {
+                    setIsGachaAnimating(false);
+                    showNotification("서버 통신 오류");
+                });
+                return;
+            }
+
+            // 비로그인: 로컬 로직 유지
             if (userPoints < GACHA_COST) {
               showNotification("포인트가 부족해요! (마켓에서 꽃을 팔아보세요)");
               return;
@@ -342,6 +420,34 @@
           // --- Logic: Sell ---
           const handleSell = (flowerId) => {
             const flower = flowerDB.find(f => f.id === parseInt(flowerId));
+            
+            if (isLoggedIn) {
+                const token = localStorage.getItem('authToken');
+                fetch('/api/user/sell', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}` 
+                    },
+                    body: JSON.stringify({ flowerId })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        setUserPoints(data.points);
+                        setInventory(prev => {
+                            const newState = { ...prev };
+                            newState[flowerId]--;
+                            if (newState[flowerId] === 0) delete newState[flowerId];
+                            return newState;
+                        });
+                        showNotification(`${flower.name} 판매 완료! +${flower.price}P`);
+                        setSelectedFlower(null);
+                    }
+                });
+                return;
+            }
+
             if (inventory[flowerId] > 0) {
               setInventory(prev => {
                 const newState = { ...prev };
