@@ -29,6 +29,7 @@ const userFlowerSchema = new mongoose.Schema({
     letterContent: String, // 편지 내용
     senderName: String,    // 보낸 사람 이름
     letterStyle: String,   // 편지지 스타일 (배경색 클래스 등)
+    expiresAt: Date,       // 링크 만료 시간 (24시간)
     receivedAt: Date,      // 선물 받은 날짜 기록용
     claimed: { type: Boolean, default: false } // 이미 수령된 선물인지 확인
   }

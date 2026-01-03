@@ -52,7 +52,8 @@ router.post('/create-link', async (req, res) => {
       token: shareToken,
       letterContent: letterContent,
       senderName: senderName,
-      letterStyle: letterStyle || "bg-rose-50" // 기본값 설정
+      letterStyle: letterStyle || "bg-rose-50", // 기본값 설정
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24시간 후 만료
     };
 
     await flowerInstance.save();
@@ -60,7 +61,7 @@ router.post('/create-link', async (req, res) => {
     const shareUrl = `${FRONTEND_URL}/share/${shareToken}`;
 
     // 공유용 메시지 (내용 숨김)
-    const simpleDescription = "편지와 함께 꽃이 도착했습니다. 링크를 통해 확인하세요!";
+    const simpleDescription = "편지와 함께 꽃이 도착했습니다. 24시간 내 확인 하지 않으면 꽃이 시들어요!";
     const buttonTitle = "매일 피어나는 꽃말 도감, 플로리스에서 확인하세요.";
 
     // 복사 붙여넣기용 전체 텍스트 구성 (링크 포함)
@@ -97,6 +98,11 @@ router.get('/:token', async (req, res) => {
     
     if (!flowerInstance) {
       return res.status(404).json({ success: false, message: "유효하지 않은 링크입니다." });
+    }
+
+    // 만료 여부 확인
+    if (flowerInstance.shareInfo && flowerInstance.shareInfo.expiresAt && new Date() > flowerInstance.shareInfo.expiresAt) {
+      return res.status(410).json({ success: false, message: "유효 기간(24시간)이 만료된 선물입니다." });
     }
 
     // 이미 수령된 선물인지 확인 (UI 표시용)
@@ -141,6 +147,11 @@ router.post('/claim', async (req, res) => {
     
     if (!originalFlower) {
       return res.status(404).json({ message: "잘못된 접근입니다." });
+    }
+
+    // 만료 여부 확인
+    if (originalFlower.shareInfo && originalFlower.shareInfo.expiresAt && new Date() > originalFlower.shareInfo.expiresAt) {
+      return res.status(410).json({ message: "유효 기간이 만료되어 받을 수 없습니다." });
     }
 
     // 이미 수령된 선물인지 확인 (보안)

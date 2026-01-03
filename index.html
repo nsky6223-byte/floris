@@ -122,6 +122,7 @@
           const [flowerDB, setFlowerDB] = useState([]);
           const [sharedLetter, setSharedLetter] = useState(null);
           const [lastBonusDate, setLastBonusDate] = useState(() => localStorage.getItem('lastBonusDate'));
+          const [shareError, setShareError] = useState(null);
 
           useEffect(() => {
             // 1. 꽃 데이터 로드
@@ -136,8 +137,11 @@
               const token = path.split('/')[2];
               if (token) {
                 fetch(`/api/share/${token}`)
-                  .then(res => {
-                    if (!res.ok) throw new Error("유효하지 않은 링크");
+                  .then(async res => {
+                    if (!res.ok) {
+                        const errData = await res.json().catch(() => ({}));
+                        throw new Error(errData.message || "유효하지 않은 링크입니다.");
+                    }
                     return res.json();
                   })
                   .then(data => {
@@ -147,8 +151,7 @@
                   })
                   .catch(err => {
                     console.error("공유 데이터 로딩 실패:", err);
-                    alert("유효하지 않거나 만료된 링크입니다.");
-                    window.location.href = "/";
+                    setShareError(err.message);
                   });
               }
             }
@@ -421,20 +424,56 @@
           };
 
           // --- Logic: Claim Shared Flower ---
-          const handleClaim = () => {
+          const handleClaim = async () => {
             if (!sharedLetter) return;
-            const id = sharedLetter.flowerId;
             
-            // 선물함에 추가 (도감이 아님)
-            setGiftBox(prev => [...prev, {
-                ...sharedLetter,
-                receivedAt: new Date().toISOString()
-            }]);
+            try {
+                // 임시 User ID 생성 (없으면)
+                let userId = localStorage.getItem('userId');
+                if (!userId) {
+                    userId = 'user_' + Math.random().toString(36).substr(2, 9);
+                    localStorage.setItem('userId', userId);
+                }
 
-            setSharedLetter(null);
-            window.history.pushState({}, '', '/');
-            setActiveTab('giftbox'); // 편지함으로 이동
-            setTimeout(() => showNotification(`${sharedLetter.flowerInfo.name}이(가) 편지함에 도착했습니다!`), 300);
+                const path = window.location.pathname;
+                const token = path.split('/')[2];
+
+                // 서버에 수령 요청 (중복 수령 방지)
+                const response = await fetch('/api/share/claim', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        token: token,
+                        receiverUserId: userId
+                    }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || "선물을 받는데 실패했습니다.");
+                }
+
+                // 성공 시 로컬 저장소에 추가
+                setGiftBox(prev => [...prev, {
+                    ...sharedLetter,
+                    receivedAt: new Date().toISOString()
+                }]);
+
+                setSharedLetter(null);
+                window.history.pushState({}, '', '/');
+                setActiveTab('giftbox'); // 편지함으로 이동
+                setTimeout(() => showNotification(`${sharedLetter.flowerInfo.name}이(가) 편지함에 도착했습니다!`), 300);
+
+            } catch (error) {
+                alert(error.message);
+                // 이미 수령된 경우 홈으로 이동
+                if (error.message.includes("이미") || error.message.includes("유효하지")) {
+                     setSharedLetter(null);
+                     window.history.pushState({}, '', '/');
+                }
+            }
           };
 
           // --- Views ---
@@ -783,6 +822,26 @@
           };
 
           // --- Main Layout ---
+          if (shareError) {
+            return (
+                <div className="max-w-md mx-auto h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-6 font-sans">
+                    <div className="bg-white p-8 rounded-3xl shadow-xl border border-rose-100 w-full text-center animate-in zoom-in duration-300">
+                        <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <X size={40} className="text-rose-400" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-800 mb-2">링크를 열 수 없어요</h2>
+                        <p className="text-slate-500 mb-8 break-keep">{shareError}</p>
+                        <button 
+                            onClick={() => { window.location.href = "/"; }}
+                            className="w-full bg-rose-500 text-white py-3 rounded-xl font-bold hover:bg-rose-600 transition-colors shadow-lg shadow-rose-200"
+                        >
+                            홈으로 돌아가기
+                        </button>
+                    </div>
+                </div>
+            );
+          }
+
           if (sharedLetter) {
             // 저장된 스타일 찾기 (없으면 기본값)
             const currentStyle = LETTER_STYLES.find(s => s.bg === sharedLetter.letterStyle) || LETTER_STYLES[0];
