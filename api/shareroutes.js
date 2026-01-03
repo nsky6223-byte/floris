@@ -188,7 +188,7 @@ router.post('/claim', async (req, res) => {
     originalFlower.shareInfo.claimed = true;
     await originalFlower.save();
 
-    res.json({ success: true, message: "꽃이 도감에 추가되었습니다!" });
+    res.json({ success: true, message: "꽃이 편지함에 추가되었습니다!" });
 
   } catch (error) {
     res.status(500).json({ error: error.message });
