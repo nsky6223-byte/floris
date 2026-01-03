@@ -106,7 +106,7 @@ router.get('/:token', async (req, res) => {
 
     // 만료 여부 확인
     if (flowerInstance.shareInfo && flowerInstance.shareInfo.expiresAt && new Date() > flowerInstance.shareInfo.expiresAt) {
-      return res.status(410).json({ success: false, message: "유효 기간(24시간)이 만료된 선물입니다." });
+      return res.status(410).json({ success: false, message: "아쉽게도 시간이 지나 꽃이 시들어버렸어요..." });
     }
 
     // 이미 수령된 선물인지 확인 (UI 표시용)
@@ -155,7 +155,7 @@ router.post('/claim', async (req, res) => {
 
     // 만료 여부 확인
     if (originalFlower.shareInfo && originalFlower.shareInfo.expiresAt && new Date() > originalFlower.shareInfo.expiresAt) {
-      return res.status(410).json({ message: "유효 기간이 만료되어 받을 수 없습니다." });
+      return res.status(410).json({ message: "아쉽게도 시간이 지나 꽃이 시들어버렸어요..." });
     }
 
     // 이미 수령된 선물인지 확인 (보안)
