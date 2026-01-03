@@ -2,12 +2,61 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const shareRoutes = require('./shareroutes');
+const passport = require('passport');
+const KakaoStrategy = require('passport-kakao').Strategy;
+const jwt = require('jsonwebtoken');
+const User = require('./user');
+const dbConnect = require('./dbconnect');
 
 const app = express();
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://floris-ebon.vercel.app';
 
 // 미들웨어 설정
 app.use(cors());
 app.use(express.json());
+app.use(passport.initialize());
+
+// Passport 설정 (Kakao)
+passport.use(new KakaoStrategy({
+    clientID: process.env.KAKAO_CLIENT_ID,
+    callbackURL: `${FRONTEND_URL}/api/auth/kakao/callback`
+  },
+  async (accessToken, refreshToken, profile, done) => {
+    try {
+      await dbConnect();
+      // DB에서 유저 찾기
+      let user = await User.findOne({ snsId: profile.id, provider: 'kakao' });
+      
+      if (!user) {
+        // 없으면 회원가입
+        user = new User({
+          snsId: profile.id,
+          provider: 'kakao',
+          nickname: profile.username || profile.displayName,
+          profileImage: profile._json.properties?.profile_image
+        });
+        await user.save();
+      }
+      return done(null, user);
+    } catch (error) {
+      return done(error);
+    }
+  }
+));
+
+// 라우트: 카카오 로그인 시작
+app.get('/api/auth/kakao', passport.authenticate('kakao'));
+
+// 라우트: 카카오 로그인 콜백
+app.get('/api/auth/kakao/callback',
+  passport.authenticate('kakao', { session: false, failureRedirect: '/' }),
+  (req, res) => {
+    // JWT 토큰 생성
+    const token = jwt.sign({ id: req.user._id, snsId: req.user.snsId }, process.env.JWT_SECRET || 'secret_key', { expiresIn: '7d' });
+    // 프론트엔드로 리다이렉트 (토큰 전달)
+    res.redirect(`${FRONTEND_URL}/?token=${token}&nickname=${encodeURIComponent(req.user.nickname)}`);
+  }
+);
 
 // 라우트 설정 (프론트엔드 요청 경로: /api/share/...)
 app.use('/api/share', shareRoutes);

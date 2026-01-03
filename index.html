@@ -136,6 +136,36 @@
           const [sharedLetter, setSharedLetter] = useState(null);
           const [lastBonusDate, setLastBonusDate] = useState(() => localStorage.getItem('lastBonusDate'));
           const [shareError, setShareError] = useState(null);
+          
+          // Login State
+          const [isLoggedIn, setIsLoggedIn] = useState(false);
+          const [userInfo, setUserInfo] = useState({ nickname: '' });
+
+          useEffect(() => {
+            // 1. URL에서 토큰 확인 (로그인 콜백 처리)
+            const params = new URLSearchParams(window.location.search);
+            const token = params.get('token');
+            const nickname = params.get('nickname');
+
+            if (token) {
+              localStorage.setItem('authToken', token);
+              if (nickname) localStorage.setItem('nickname', nickname);
+              
+              // URL 정리 (토큰 숨기기)
+              window.history.replaceState({}, document.title, "/");
+              
+              setIsLoggedIn(true);
+              setUserInfo({ nickname: nickname });
+            } else {
+              // 2. 로컬 스토리지 확인 (기존 로그인 유지)
+              const savedToken = localStorage.getItem('authToken');
+              const savedNickname = localStorage.getItem('nickname');
+              if (savedToken) {
+                setIsLoggedIn(true);
+                setUserInfo({ nickname: savedNickname || '정원사' });
+              }
+            }
+          }, []);
 
           useEffect(() => {
             // 1. 꽃 데이터 로드
@@ -329,13 +359,15 @@
           const handleShare = async (flower) => {
             showNotification("공유 링크를 생성하는 중...");
 
+            const token = localStorage.getItem('authToken');
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = `Bearer ${token}`;
+
             try {
               // 서버 API 호출
               const response = await fetch('/api/share/create-link', {
                 method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
+                headers: headers,
                 body: JSON.stringify({
                   flowerId: flower.id, // 도감 번호 전송
                   letterContent: letterContent,
@@ -457,12 +489,14 @@
                 const path = window.location.pathname;
                 const token = path.split('/')[2];
 
+                const authToken = localStorage.getItem('authToken');
+                const headers = { 'Content-Type': 'application/json' };
+                if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
                 // 서버에 수령 요청 (중복 수령 방지)
                 const response = await fetch('/api/share/claim', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: headers,
                     body: JSON.stringify({
                         token: token,
                         receiverUserId: userId
@@ -495,6 +529,14 @@
             }
           };
 
+          const handleLogout = () => {
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('nickname');
+            setIsLoggedIn(false);
+            setUserInfo({ nickname: '' });
+            window.location.reload();
+          };
+
           // --- Views ---
 
           const HomeView = () => {
@@ -506,7 +548,19 @@
               <header className="flex justify-between items-center mb-8">
                 <div>
                   <h1 className="text-2xl font-serif font-bold text-rose-950">Floris</h1>
-                  <p className="text-rose-400 text-xs">매일 피어나는 나만의 정원</p>
+                  {isLoggedIn ? (
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="text-rose-500 text-xs font-bold">Hello, {userInfo.nickname}님!</span>
+                        <button onClick={handleLogout} className="text-[10px] text-slate-400 underline">로그아웃</button>
+                    </div>
+                  ) : (
+                    <button 
+                        onClick={() => window.location.href = '/api/auth/kakao'}
+                        className="mt-1 bg-[#FEE500] text-[#000000] text-xs px-3 py-1 rounded-md font-bold flex items-center gap-1 hover:bg-[#FDD835] transition-colors"
+                    >
+                        <span className="text-[10px]">💬</span> 카카오 로그인
+                    </button>
+                  )}
                 </div>
                 <div className="bg-white/80 backdrop-blur px-3 py-1.5 rounded-full border border-rose-100 flex items-center gap-2 shadow-sm">
                   <div className="w-4 h-4 bg-yellow-400 rounded-full flex items-center justify-center text-[10px] text-yellow-800 font-bold">P</div>

@@ -4,8 +4,21 @@ const UserFlower = require('./userflower');
 const flowersCatalog = require('./flowers.json'); // 기존 도감 파일 참조
 const { v4: uuidv4 } = require('uuid'); // 토큰 생성을 위한 라이브러리 (npm install uuid 필요)
 const dbConnect = require('./dbconnect');
+const jwt = require('jsonwebtoken');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://floris-ebon.vercel.app';
+const JWT_SECRET = process.env.JWT_SECRET || 'secret_key';
+
+// 토큰 검증 헬퍼 함수
+const getUserFromToken = (req) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      return jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
+    } catch (e) { return null; }
+  }
+  return null;
+};
 
 // 1. 꽃 공유하기 (링크 생성)
 router.post('/create-link', async (req, res) => {
@@ -14,6 +27,9 @@ router.post('/create-link', async (req, res) => {
 
   try {
     await dbConnect();
+    const user = getUserFromToken(req);
+    const userId = user ? user.id : 'guest'; // 로그인했으면 유저 ID, 아니면 guest
+
     let flowerInstance;
 
     if (userFlowerId) {
@@ -29,7 +45,7 @@ router.post('/create-link', async (req, res) => {
     } else if (flowerId) {
       // 2. 도감 번호만으로 공유하는 경우 (비로그인/테스트용) -> DB에 새로 생성
       flowerInstance = new UserFlower({
-        userId: 'guest', // 임시 사용자 ID
+        userId: userId, // 로그인한 유저 ID 적용
         flowerId: flowerId,
         isGift: false,
         isShared: false
@@ -137,11 +153,14 @@ router.get('/:token', async (req, res) => {
 
 // 3. 꽃 받기 (내 도감에 추가)
 router.post('/claim', async (req, res) => {
-  const { token, receiverUserId } = req.body;
+  const { token } = req.body;
+  const user = getUserFromToken(req);
+  // 로그인했으면 토큰의 ID, 아니면 프론트에서 보낸 임시 ID 사용
+  const receiverUserId = user ? user.id : req.body.receiverUserId;
 
   // 필수 데이터 유효성 검사
   if (!token || !receiverUserId) {
-    return res.status(400).json({ message: "토큰과 받는 사람 ID가 필요합니다." });
+    return res.status(400).json({ message: "로그인이 필요하거나 잘못된 요청입니다." });
   }
 
   try {
