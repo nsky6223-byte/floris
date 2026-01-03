@@ -44,13 +44,28 @@ router.post('/create-link', async (req, res) => {
       }
     } else if (flowerId) {
       // 2. 도감 번호만으로 공유하는 경우 (비로그인/테스트용) -> DB에 새로 생성
-      flowerInstance = new UserFlower({
-        userId: userId, // 로그인한 유저 ID 적용
-        flowerId: flowerId,
-        isGift: false,
-        isShared: false
-      });
-      await flowerInstance.save();
+      if (userId !== 'guest') {
+        // 로그인 유저: 인벤토리에서 차감 (가장 오래된 것부터)
+        flowerInstance = await UserFlower.findOne({
+          userId: userId,
+          flowerId: flowerId,
+          isGift: false,
+          isShared: false
+        }).sort({ obtainedAt: 1 });
+
+        if (!flowerInstance) {
+           return res.status(400).json({ message: "보유하지 않은 꽃입니다." });
+        }
+      } else {
+        // 게스트: 임시 생성
+        flowerInstance = new UserFlower({
+          userId: userId,
+          flowerId: flowerId,
+          isGift: false,
+          isShared: false
+        });
+        await flowerInstance.save();
+      }
     } else {
       return res.status(400).json({ message: "꽃 ID가 필요합니다." });
     }

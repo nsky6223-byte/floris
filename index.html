@@ -638,6 +638,13 @@
           const handleLogout = () => {
             localStorage.removeItem('authToken');
             localStorage.removeItem('nickname');
+            
+            // 로그아웃 시 로컬 데이터도 초기화 (데이터 꼬임 방지)
+            localStorage.removeItem('userPoints');
+            localStorage.removeItem('inventory');
+            localStorage.removeItem('giftBox');
+            localStorage.removeItem('newFlowerIds');
+
             setIsLoggedIn(false);
             setUserInfo({ nickname: '' });
             window.location.reload();
