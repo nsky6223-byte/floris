@@ -22,10 +22,16 @@ if (!process.env.KAKAO_CLIENT_ID) {
   console.error("⚠️ CRITICAL: KAKAO_CLIENT_ID 환경변수가 없습니다. Vercel 설정을 확인하세요.");
 }
 
-passport.use(new KakaoStrategy({
-    clientID: process.env.KAKAO_CLIENT_ID || "MISSING_KEY", 
-    callbackURL: `${FRONTEND_URL}/api/auth/kakao/callback`
-  },
+const kakaoConfig = {
+  clientID: process.env.KAKAO_CLIENT_ID || "MISSING_KEY",
+  callbackURL: `${FRONTEND_URL}/api/auth/kakao/callback`
+};
+// KAKAO_CLIENT_SECRET이 환경변수에 있을 때만 설정에 추가 (없으면 아예 안 보냄)
+if (process.env.KAKAO_CLIENT_SECRET) {
+  kakaoConfig.clientSecret = process.env.KAKAO_CLIENT_SECRET;
+}
+
+passport.use(new KakaoStrategy(kakaoConfig,
   async (accessToken, refreshToken, profile, done) => {
     try {
       await dbConnect();
@@ -57,10 +63,18 @@ app.get('/api/auth/kakao/callback', (req, res, next) => {
   passport.authenticate('kakao', { session: false }, (err, user, info) => {
     if (err) {
       console.error("Kakao Login Error:", err);
+
+      let errorTip = "Vercel 환경변수 설정을 확인하세요.";
+      if (err.message.includes('Bad client credentials')) {
+        errorTip = "KAKAO_CLIENT_ID가 틀렸거나, 카카오 보안 설정(Client Secret) 문제일 수 있습니다.";
+      } else if (err.message.includes('Mongoose') || err.message.includes('connection')) {
+        errorTip = "Vercel 환경변수에 MONGODB_URI가 없거나 잘못되었습니다.";
+      }
+
       return res.status(500).send(`
         <h3>로그인 에러 발생 🚨</h3>
         <p><b>에러 내용:</b> ${err.message}</p>
-        <p><b>해결 팁:</b> Vercel 환경변수에 <code>MONGODB_URI</code>가 없거나 잘못되었습니다.</p>
+        <p><b>해결 팁:</b> ${errorTip}</p>
         <a href="/">홈으로 돌아가기</a>
       `);
     }
