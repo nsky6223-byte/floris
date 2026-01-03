@@ -45,7 +45,7 @@ passport.use(new KakaoStrategy({
 ));
 
 // 라우트: 카카오 로그인 시작
-app.get('/api/auth/kakao', passport.authenticate('kakao'));
+app.get('/api/auth/kakao', passport.authenticate('kakao', { session: false }));
 
 // 라우트: 카카오 로그인 콜백
 app.get('/api/auth/kakao/callback',
