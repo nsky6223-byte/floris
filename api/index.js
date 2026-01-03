@@ -9,6 +9,7 @@ const User = require('./user');
 const UserFlower = require('./userflower');
 const flowersCatalog = require('./flowers.json');
 const dbConnect = require('./dbconnect');
+const { getUserFromToken } = require('./auth');
 
 const app = express();
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://floris-ebon.vercel.app';
@@ -18,16 +19,8 @@ app.use(cors());
 app.use(express.json());
 app.use(passport.initialize());
 
-// 토큰 검증 헬퍼 함수
-const getUserFromToken = (req) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    try {
-      return jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET || 'secret_key');
-    } catch (e) { return null; }
-  }
-  return null;
-};
+// 도감 검색 최적화 (Map 생성)
+const flowersMap = flowersCatalog.reduce((acc, f) => { acc[f.id] = f; return acc; }, {});
 
 // Passport 설정 (Kakao)
 // KAKAO_CLIENT_ID가 없어도 서버가 죽지 않도록 예외 처리 (임시 값 할당)
@@ -123,7 +116,7 @@ app.get('/api/user/me', async (req, res) => {
     flowers.forEach(f => {
       if (f.isGift) {
         // 선물받은 꽃 (편지함)
-        const flowerInfo = flowersCatalog.find(fc => fc.id === f.flowerId);
+        const flowerInfo = flowersMap[f.flowerId];
         if (flowerInfo) {
           giftBox.push({
             flowerId: f.flowerId,
@@ -207,7 +200,7 @@ app.post('/api/user/sell', async (req, res) => {
     const flowerInstance = await UserFlower.findOne({ userId: user.id, flowerId: flowerId, isGift: false, isShared: false });
     if (!flowerInstance) return res.status(404).json({ message: "Flower not found" });
 
-    const flowerInfo = flowersCatalog.find(f => f.id === parseInt(flowerId));
+    const flowerInfo = flowersMap[flowerId];
     await UserFlower.deleteOne({ _id: flowerInstance._id });
     
     const dbUser = await User.findById(user.id);

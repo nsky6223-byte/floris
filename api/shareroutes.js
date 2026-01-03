@@ -4,21 +4,12 @@ const UserFlower = require('./userflower');
 const flowersCatalog = require('./flowers.json'); // 기존 도감 파일 참조
 const { v4: uuidv4 } = require('uuid'); // 토큰 생성을 위한 라이브러리 (npm install uuid 필요)
 const dbConnect = require('./dbconnect');
-const jwt = require('jsonwebtoken');
+const { getUserFromToken } = require('./auth');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://floris-ebon.vercel.app';
-const JWT_SECRET = process.env.JWT_SECRET || 'secret_key';
 
-// 토큰 검증 헬퍼 함수
-const getUserFromToken = (req) => {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    try {
-      return jwt.verify(authHeader.split(' ')[1], JWT_SECRET);
-    } catch (e) { return null; }
-  }
-  return null;
-};
+// 도감 검색 최적화 (Map 생성)
+const flowersMap = flowersCatalog.reduce((acc, f) => { acc[f.id] = f; return acc; }, {});
 
 // 1. 꽃 공유하기 (링크 생성)
 router.post('/create-link', async (req, res) => {
@@ -71,7 +62,7 @@ router.post('/create-link', async (req, res) => {
     }
 
     // 도감 정보 미리 확인 (데이터 무결성)
-    const flowerInfo = flowersCatalog.find(f => f.id === flowerInstance.flowerId);
+    const flowerInfo = flowersMap[flowerInstance.flowerId];
     if (!flowerInfo) {
       return res.status(500).json({ message: "꽃 도감 정보를 찾을 수 없습니다." });
     }
@@ -145,7 +136,7 @@ router.get('/:token', async (req, res) => {
       return res.status(410).json({ success: false, message: "이미 누군가 수령한 선물입니다." });
     }
 
-    const flowerInfo = flowersCatalog.find(f => f.id === flowerInstance.flowerId);
+    const flowerInfo = flowersMap[flowerInstance.flowerId];
     if (!flowerInfo) {
       return res.status(500).json({ success: false, message: "꽃 정보를 불러올 수 없습니다." });
     }

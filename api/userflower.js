@@ -12,7 +12,8 @@ const userFlowerSchema = new mongoose.Schema({
   },
   obtainedAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
+    index: true // 정렬 쿼리 최적화
   },
   // 핵심 기능: 공유 및 선물 제한 플래그
   isGift: {

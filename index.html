@@ -263,6 +263,14 @@
             }
           }, []);
 
+          // 최적화: 꽃 데이터를 ID로 빠르게 찾기 위한 Map 생성
+          const flowerMap = useMemo(() => {
+            return flowerDB.reduce((acc, flower) => {
+              acc[flower.id] = flower;
+              return acc;
+            }, {});
+          }, [flowerDB]);
+
           const [inventory, setInventory] = useState(() => {
             try {
               const saved = localStorage.getItem('inventory');
@@ -442,7 +450,7 @@
 
           // --- Logic: Sell ---
           const handleSell = (flowerId) => {
-            const flower = flowerDB.find(f => f.id === parseInt(flowerId));
+            const flower = flowerMap[flowerId];
             
             if (isLoggedIn) {
                 const token = localStorage.getItem('authToken');
@@ -831,8 +839,8 @@
               if (sortMode === 'rarity') {
                   const rarityOrder = { "Legendary": 3, "Rare": 2, "Common": 1 };
                   ids.sort((a, b) => {
-                      const flowerA = flowerDB.find(f => f.id === parseInt(a));
-                      const flowerB = flowerDB.find(f => f.id === parseInt(b));
+                      const flowerA = flowerMap[a];
+                      const flowerB = flowerMap[b];
                       if (!flowerA || !flowerB) return 0;
                       return rarityOrder[flowerB.rarity] - rarityOrder[flowerA.rarity] || flowerA.id - flowerB.id;
                   });
@@ -840,7 +848,7 @@
                   ids.sort((a, b) => parseInt(a) - parseInt(b));
               }
               return ids;
-            }, [inventory, sortMode, flowerDB]);
+            }, [inventory, sortMode, flowerMap]);
             
             return (
               <div className="p-6 pb-24">
@@ -872,7 +880,7 @@
                 ) : (
                   <div className="grid grid-cols-2 gap-4">
                     {myFlowerIds.map(id => {
-                      const flower = flowerDB.find(f => f.id === parseInt(id));
+                      const flower = flowerMap[id];
                       // Highlight new flowers if they are in the new list (and not yet revealed)
                       const isUnrevealed = newFlowerIds.includes(parseInt(id));
                       
@@ -973,7 +981,7 @@
                   ) : (
                     <div className="space-y-3">
                       {duplicates.map(id => {
-                        const flower = flowerDB.find(f => f.id === parseInt(id));
+                        const flower = flowerMap[id];
                         return (
                           <div key={id} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl">
                             <div className="flex items-center gap-3">
@@ -1008,7 +1016,7 @@
               if (!isRevealing || newFlowerIds.length === 0) return null;
               
               const currentId = newFlowerIds[revealIndex];
-              const flower = flowerDB.find(f => f.id === currentId);
+              const flower = flowerMap[currentId];
               const isLast = revealIndex === newFlowerIds.length - 1;
 
               return (
