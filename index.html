@@ -232,7 +232,7 @@
 
           useEffect(() => {
             // 1. 꽃 데이터 로드
-            fetch('/flowers.json')
+            fetch('/api/flowers')
               .then(res => res.json())
               .then(data => {
                 setFlowerDB(data);

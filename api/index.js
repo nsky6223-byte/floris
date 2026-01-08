@@ -44,6 +44,11 @@ app.use(cors({
 app.use(express.json());
 app.use(passport.initialize());
 
+// 프론트엔드와 데이터 동기화를 위한 꽃 목록 API
+app.get('/api/flowers', (req, res) => {
+  res.json(flowersCatalog);
+});
+
 // 도감 검색 최적화 (Map 생성)
 const flowersMap = flowersCatalog.reduce((acc, f) => { acc[f.id] = f; return acc; }, {});
 
