@@ -37,7 +37,10 @@ const gachaLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: "가챠 요청이 너무 빠릅니다. 잠시 후 다시 시도해주세요." }
 });
-app.use(cors());
+app.use(cors({
+  origin: FRONTEND_URL, // 지정된 프론트엔드 주소만 허용
+  credentials: true
+}));
 app.use(express.json());
 app.use(passport.initialize());
 
@@ -51,13 +54,11 @@ if (!process.env.KAKAO_CLIENT_ID) {
 }
 
 const kakaoConfig = {
-  clientID: process.env.KAKAO_CLIENT_ID || "MISSING_KEY",
   clientID: (process.env.KAKAO_CLIENT_ID || "MISSING_KEY").trim(), // 공백 제거
   callbackURL: `${FRONTEND_URL}/api/auth/kakao/callback`
 };
 // KAKAO_CLIENT_SECRET이 환경변수에 있을 때만 설정에 추가 (없으면 아예 안 보냄)
 if (process.env.KAKAO_CLIENT_SECRET) {
-  kakaoConfig.clientSecret = process.env.KAKAO_CLIENT_SECRET;
   kakaoConfig.clientSecret = process.env.KAKAO_CLIENT_SECRET.trim(); // 공백 제거
 }
 
